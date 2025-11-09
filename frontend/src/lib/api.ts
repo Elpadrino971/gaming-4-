@@ -84,9 +84,25 @@ export const paymentsAPI = {
   createPaymentIntent: (data: any) => api.post('/payments/create-intent', data),
 }
 
+// Missions API
+export const missionsAPI = {
+  getUserMissions: () => api.get('/missions'),
+  claimReward: (missionId: string) => api.post(`/missions/${missionId}/claim`),
+  getMissionStats: () => api.get('/missions/stats'),
+}
+
+// VIP API
+export const vipAPI = {
+  getBenefits: () => api.get('/vip/benefits'),
+  subscribe: (data: any) => api.post('/vip/subscribe', data),
+  cancelSubscription: () => api.post('/vip/cancel'),
+  getSubscription: () => api.get('/vip/subscription'),
+}
+
 // Admin API
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),
+  getFinancialDashboard: (days?: number) => api.get('/admin/financial', { params: { days } }),
   getUsers: (params?: any) => api.get('/admin/users', { params }),
   getOrders: (params?: any) => api.get('/admin/orders', { params }),
   updateOrder: (id: string, data: any) => api.put(`/admin/orders/${id}`, data),
