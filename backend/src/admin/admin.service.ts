@@ -8,30 +8,188 @@ export class AdminService {
   async getDashboardStats() {
     const [
       totalUsers,
+      vipUsers,
       totalGames,
       totalOrders,
       totalRevenue,
+      totalRakeCollected,
       activeGames,
       pendingOrders,
+      todayStats,
     ] = await Promise.all([
       this.prisma.user.count(),
+      this.prisma.user.count({ where: { isVip: true } }),
       this.prisma.game.count(),
       this.prisma.order.count(),
       this.prisma.payment.aggregate({
         where: { status: 'SUCCEEDED' },
         _sum: { amount: true },
       }),
+      this.prisma.game.aggregate({
+        where: { status: 'COMPLETED' },
+        _sum: { rakeAmount: true },
+      }),
       this.prisma.game.count({ where: { status: 'IN_PROGRESS' } }),
       this.prisma.order.count({ where: { status: 'PENDING' } }),
+      this.getTodayStats(),
     ]);
 
     return {
       totalUsers,
+      vipUsers,
+      vipPercentage: totalUsers > 0 ? ((vipUsers / totalUsers) * 100).toFixed(2) : 0,
       totalGames,
       totalOrders,
       totalRevenue: Number(totalRevenue._sum.amount || 0),
+      totalRakeCollected: Number(totalRakeCollected._sum.rakeAmount || 0),
       activeGames,
       pendingOrders,
+      today: todayStats,
+    };
+  }
+
+  /**
+   * Today's stats
+   */
+  private async getTodayStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = await this.prisma.dailyStats.findUnique({
+      where: { date: today },
+    });
+
+    if (stats) {
+      return {
+        newUsers: stats.newUsers,
+        activeUsers: stats.activeUsers,
+        gamesPlayed: stats.gamesPlayed,
+        rakeCollected: Number(stats.rakeCollected),
+        totalRevenue: Number(stats.totalRevenue),
+      };
+    }
+
+    // Calculate on the fly
+    const [newUsers, games] = await Promise.all([
+      this.prisma.user.count({
+        where: { createdAt: { gte: today } },
+      }),
+      this.prisma.game.findMany({
+        where: {
+          status: 'COMPLETED',
+          completedAt: { gte: today },
+        },
+      }),
+    ]);
+
+    const rakeCollected = games.reduce(
+      (sum, game) => sum + Number(game.rakeAmount),
+      0,
+    );
+
+    return {
+      newUsers,
+      activeUsers: 0,
+      gamesPlayed: games.length,
+      rakeCollected,
+      totalRevenue: rakeCollected,
+    };
+  }
+
+  /**
+   * Financial dashboard with detailed breakdown
+   */
+  async getFinancialDashboard(days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Daily stats
+    const dailyStats = await this.prisma.dailyStats.findMany({
+      where: { date: { gte: startDate } },
+      orderBy: { date: 'asc' },
+    });
+
+    // Total rake
+    const totalRake = await this.prisma.game.aggregate({
+      where: {
+        status: 'COMPLETED',
+        completedAt: { gte: startDate },
+      },
+      _sum: { rakeAmount: true },
+    });
+
+    // VIP revenue
+    const vipRevenue = await this.prisma.payment.aggregate({
+      where: {
+        type: 'VIP_SUBSCRIPTION',
+        status: 'SUCCEEDED',
+        createdAt: { gte: startDate },
+      },
+      _sum: { amount: true },
+    });
+
+    // Shop revenue
+    const shopOrders = await this.prisma.order.findMany({
+      where: {
+        status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] },
+        createdAt: { gte: startDate },
+      },
+    });
+
+    const shopRevenue = shopOrders.reduce(
+      (sum, order) => sum + Number(order.totalEur),
+      0,
+    );
+
+    // Game type breakdown
+    const gamesByType = await this.prisma.game.groupBy({
+      by: ['type'],
+      where: {
+        status: 'COMPLETED',
+        completedAt: { gte: startDate },
+      },
+      _count: true,
+      _sum: {
+        rakeAmount: true,
+        totalCollected: true,
+      },
+    });
+
+    const rakeTotal = Number(totalRake._sum.rakeAmount || 0);
+    const vipTotal = Number(vipRevenue._sum.amount || 0);
+    const totalRevenue = rakeTotal + vipTotal + shopRevenue;
+
+    return {
+      period: {
+        days,
+        startDate,
+        endDate: new Date(),
+      },
+      summary: {
+        totalRevenue,
+        rakeCollected: rakeTotal,
+        rakePercentage: totalRevenue > 0 ? ((rakeTotal / totalRevenue) * 100).toFixed(2) : 0,
+        vipRevenue: vipTotal,
+        vipPercentage: totalRevenue > 0 ? ((vipTotal / totalRevenue) * 100).toFixed(2) : 0,
+        shopRevenue,
+        shopPercentage: totalRevenue > 0 ? ((shopRevenue / totalRevenue) * 100).toFixed(2) : 0,
+      },
+      gamesByType: gamesByType.map((g) => ({
+        type: g.type,
+        count: g._count,
+        totalCollected: Number(g._sum.totalCollected || 0),
+        rakeCollected: Number(g._sum.rakeAmount || 0),
+        avgRake: g._count > 0 ? (Number(g._sum.rakeAmount || 0) / g._count).toFixed(2) : 0,
+      })),
+      dailyChart: dailyStats.map((s) => ({
+        date: s.date,
+        revenue: Number(s.totalRevenue),
+        rake: Number(s.rakeCollected),
+        gamesPlayed: s.gamesPlayed,
+        activeUsers: s.activeUsers,
+        vipRevenue: Number(s.vipRevenue),
+      })),
     };
   }
 
@@ -51,6 +209,7 @@ export class AdminService {
           status: true,
           level: true,
           credits: true,
+          isVip: true,
           totalGamesPlayed: true,
           createdAt: true,
         },
@@ -108,7 +267,11 @@ export class AdminService {
     };
   }
 
-  async updateOrderStatus(orderId: string, status: string, trackingNumber?: string) {
+  async updateOrderStatus(
+    orderId: string,
+    status: string,
+    trackingNumber?: string,
+  ) {
     const data: any = { status };
 
     if (status === 'SHIPPED') {

@@ -6,49 +6,104 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
 import { createHash, randomBytes } from 'crypto';
+import { GameType, Prisma } from '@prisma/client';
+
+interface GameConfig {
+  type: GameType;
+  entryFee: number;
+  rakePercent: number;
+  multipliers: number[];
+  minPlayers: number;
+  maxPlayers: number;
+}
 
 @Injectable()
 export class GamesService {
+  // Configurations pour chaque type de jeu
+  private readonly gameConfigs: Record<string, GameConfig> = {
+    STANDARD: {
+      type: 'MINI_BINGO_STANDARD',
+      entryFee: 100, // 1€ in credits
+      rakePercent: 30,
+      multipliers: [1, 1, 1, 2, 2, 2, 5, 5, 10], // 60% x1, 30% x2, 20% x5, 10% x10
+      minPlayers: 3,
+      maxPlayers: 12,
+    },
+    PREMIUM: {
+      type: 'MINI_BINGO_PREMIUM',
+      entryFee: 500, // 5€ in credits
+      rakePercent: 25,
+      multipliers: [1, 1, 2, 2, 2, 5, 5, 10, 10], // More chances for high multipliers
+      minPlayers: 3,
+      maxPlayers: 12,
+    },
+    SPEED: {
+      type: 'MINI_BINGO_SPEED',
+      entryFee: 50, // 0.50€ in credits
+      rakePercent: 35,
+      multipliers: [1, 1, 1, 1, 2, 2], // 80% x1, 20% x2
+      minPlayers: 3,
+      maxPlayers: 8,
+    },
+    FREE: {
+      type: 'MINI_BINGO_FREE',
+      entryFee: 0,
+      rakePercent: 0,
+      multipliers: [1], // Always x1
+      minPlayers: 3,
+      maxPlayers: 12,
+    },
+  };
+
   constructor(
     private prisma: PrismaService,
     private creditsService: CreditsService,
   ) {}
 
-  async createGame(entryFee: number = 1) {
+  /**
+   * Create a new game with proper economic model
+   */
+  async createGame(gameType: string = 'STANDARD') {
+    const config = this.gameConfigs[gameType];
+    if (!config) {
+      throw new BadRequestException('Invalid game type');
+    }
+
     // Generate provably fair seed
     const seed = randomBytes(32).toString('hex');
     const seedHash = createHash('sha256').update(seed).digest('hex');
 
-    // Calculate multiplier (random: x1, x2, x5, x10)
-    const multipliers = [1, 1, 1, 2, 2, 5, 10]; // Weighted random
-    const multiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
-
-    const prizePool = entryFee * 10 * multiplier; // Base prize
+    // Select random multiplier based on weighted probabilities
+    const multiplier =
+      config.multipliers[
+        Math.floor(Math.random() * config.multipliers.length)
+      ];
 
     const game = await this.prisma.game.create({
       data: {
-        type: 'MINI_BINGO_EXPRESS',
+        type: config.type,
         status: 'WAITING',
-        minPlayers: 3,
-        maxPlayers: 12,
-        entryFee,
-        prizePool,
+        minPlayers: config.minPlayers,
+        maxPlayers: config.maxPlayers,
+        entryFee: new Prisma.Decimal(config.entryFee),
+        totalCollected: 0,
+        rake: new Prisma.Decimal(config.rakePercent),
+        rakeAmount: 0,
+        basePrizePool: 0,
+        finalPrizePool: 0,
         seedHash,
-        seed: null, // Will be revealed after game
+        seed, // In production, encrypt this
         multiplier,
         drawnNumbers: [],
       },
     });
 
-    // Store seed for later reveal (in production, use Redis or encrypted storage)
-    await this.prisma.game.update({
-      where: { id: game.id },
-      data: { seed }, // Temporary - should be stored securely
-    });
-
     return game;
   }
 
+  /**
+   * Join a game with proper rake calculation
+   */
   async joinGame(gameId: string, userId: string) {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
@@ -67,34 +122,62 @@ export class GamesService {
       throw new BadRequestException('Game is full');
     }
 
-    // Check if already joined
     const alreadyJoined = game.participants.some((p) => p.userId === userId);
     if (alreadyJoined) {
       throw new BadRequestException('Already joined this game');
     }
 
-    // Check credits
-    const hasEnough = await this.creditsService.hasEnoughCredits(
-      userId,
-      Number(game.entryFee),
-    );
+    const entryFee = Number(game.entryFee);
 
-    if (!hasEnough) {
-      throw new BadRequestException('Insufficient credits');
+    // FREE games don't require payment
+    if (entryFee > 0) {
+      // Check if user has enough credits
+      const hasEnough = await this.creditsService.hasEnoughCredits(
+        userId,
+        entryFee,
+      );
+
+      if (!hasEnough) {
+        throw new BadRequestException('Insufficient credits');
+      }
+
+      // Check daily free game limit
+      if (game.type === 'MINI_BINGO_FREE') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const freeGamesToday = await this.prisma.gameParticipant.count({
+          where: {
+            userId,
+            game: {
+              type: 'MINI_BINGO_FREE',
+            },
+            joinedAt: {
+              gte: today,
+            },
+          },
+        });
+
+        if (freeGamesToday >= 1) {
+          throw new BadRequestException(
+            'You have already played your free game today',
+          );
+        }
+      }
+
+      // Deduct entry fee
+      await this.creditsService.deductCredits(
+        userId,
+        entryFee,
+        'GAME_ENTRY',
+        {
+          gameId,
+          description: `Entry fee for ${game.type} game`,
+        },
+      );
     }
 
-    // Deduct entry fee
-    await this.creditsService.deductCredits(
-      userId,
-      Number(game.entryFee),
-      'GAME_ENTRY',
-      {
-        gameId,
-        description: `Entry fee for game ${gameId}`,
-      },
-    );
-
-    // Generate bingo grid for user
+    // Generate bingo grid
     const grid = this.generateBingoGrid();
     const markedCells = new Array(25).fill(false);
 
@@ -111,15 +194,52 @@ export class GamesService {
             id: true,
             username: true,
             avatarUrl: true,
+            isVip: true,
           },
         },
       },
     });
 
+    // Update game economics
+    await this.updateGameEconomics(gameId);
+
     return {
       participant,
       game: await this.getGameById(gameId),
     };
+  }
+
+  /**
+   * Update game prize pool with proper rake calculation
+   */
+  private async updateGameEconomics(gameId: string) {
+    const game = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      include: { participants: true },
+    });
+
+    if (!game) return;
+
+    const entryFee = Number(game.entryFee);
+    const playerCount = game.participants.length;
+    const rakePercent = Number(game.rake);
+
+    // Calculate economics
+    const totalCollected = entryFee * playerCount;
+    const rakeAmount = totalCollected * (rakePercent / 100);
+    const basePrizePool = totalCollected - rakeAmount;
+    const finalPrizePool = basePrizePool * game.multiplier;
+
+    // Update game
+    await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        totalCollected: new Prisma.Decimal(totalCollected),
+        rakeAmount: new Prisma.Decimal(rakeAmount),
+        basePrizePool: new Prisma.Decimal(basePrizePool),
+        finalPrizePool: new Prisma.Decimal(finalPrizePool),
+      },
+    });
   }
 
   async getGameById(gameId: string) {
@@ -133,6 +253,7 @@ export class GamesService {
                 id: true,
                 username: true,
                 avatarUrl: true,
+                isVip: true,
               },
             },
           },
@@ -160,6 +281,7 @@ export class GamesService {
                 id: true,
                 username: true,
                 avatarUrl: true,
+                isVip: true,
               },
             },
           },
@@ -190,7 +312,6 @@ export class GamesService {
     }
 
     const markedCells = participant.markedCells;
-    const grid = participant.grid;
 
     // Check rows
     for (let row = 0; row < 5; row++) {
@@ -255,7 +376,7 @@ export class GamesService {
         numbers.push(i);
       }
 
-      // Shuffle and take 5
+      // Shuffle
       for (let i = numbers.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
@@ -267,16 +388,38 @@ export class GamesService {
     return grid;
   }
 
+  /**
+   * End game with VIP bonus calculation
+   */
   async endGame(gameId: string, winnerId: string) {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
+      include: {
+        participants: {
+          include: {
+            user: true,
+          },
+        },
+      },
     });
 
     if (!game) {
       throw new NotFoundException('Game not found');
     }
 
-    const prizeAmount = Number(game.prizePool);
+    const winner = game.participants.find((p) => p.userId === winnerId);
+    if (!winner) {
+      throw new NotFoundException('Winner not found in participants');
+    }
+
+    let basePrize = Number(game.finalPrizePool);
+
+    // Apply VIP bonus (+20% on winnings)
+    let vipBonus = 0;
+    if (winner.user.isVip) {
+      vipBonus = basePrize * 0.2;
+      basePrize += vipBonus;
+    }
 
     // Update game
     await this.prisma.game.update({
@@ -284,7 +427,7 @@ export class GamesService {
       data: {
         status: 'COMPLETED',
         winnerId,
-        winnerPrize: prizeAmount,
+        winnerPrize: new Prisma.Decimal(basePrize),
         completedAt: new Date(),
       },
     });
@@ -299,15 +442,22 @@ export class GamesService {
       },
       data: {
         isWinner: true,
-        prizeWon: prizeAmount,
+        prizeWon: new Prisma.Decimal(basePrize),
         finishedAt: new Date(),
       },
     });
 
     // Award credits to winner
-    await this.creditsService.addCredits(winnerId, prizeAmount, 'GAME_WIN', {
+    await this.creditsService.addCredits(winnerId, basePrize, 'GAME_WIN', {
       gameId,
-      description: `Won game ${gameId}`,
+      description: vipBonus > 0
+        ? `Won ${game.type} (VIP bonus +${vipBonus.toFixed(0)} credits)`
+        : `Won ${game.type}`,
+      metadata: {
+        baseWin: Number(game.finalPrizePool),
+        vipBonus,
+        totalWin: basePrize,
+      },
     });
 
     // Update user stats
@@ -321,11 +471,7 @@ export class GamesService {
     });
 
     // Update other participants' games played
-    const participants = await this.prisma.gameParticipant.findMany({
-      where: { gameId },
-    });
-
-    for (const participant of participants) {
+    for (const participant of game.participants) {
       if (participant.userId !== winnerId) {
         await this.prisma.user.update({
           where: { id: participant.userId },
@@ -337,6 +483,45 @@ export class GamesService {
       }
     }
 
+    // Track daily stats (for financial dashboard)
+    await this.trackDailyStats(game);
+
     return this.getGameById(gameId);
+  }
+
+  /**
+   * Track daily statistics for financial dashboard
+   */
+  private async trackDailyStats(game: any) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = await this.prisma.dailyStats.findUnique({
+      where: { date: today },
+    });
+
+    const rakeCollected = Number(game.rakeAmount);
+
+    if (stats) {
+      await this.prisma.dailyStats.update({
+        where: { date: today },
+        data: {
+          gamesPlayed: { increment: 1 },
+          totalPlayers: { increment: game.participants.length },
+          rakeCollected: { increment: rakeCollected },
+          totalRevenue: { increment: rakeCollected },
+        },
+      });
+    } else {
+      await this.prisma.dailyStats.create({
+        data: {
+          date: today,
+          gamesPlayed: 1,
+          totalPlayers: game.participants.length,
+          rakeCollected,
+          totalRevenue: rakeCollected,
+        },
+      });
+    }
   }
 }

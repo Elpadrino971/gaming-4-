@@ -28,6 +28,12 @@ export class AdminController {
     return this.adminService.getDashboardStats();
   }
 
+  @Get('financial')
+  @ApiOperation({ summary: 'Get detailed financial dashboard' })
+  async getFinancialDashboard(@Query('days', ParseIntPipe) days = 30) {
+    return this.adminService.getFinancialDashboard(days);
+  }
+
   @Get('users')
   @ApiOperation({ summary: 'Get all users (paginated)' })
   async getUsers(

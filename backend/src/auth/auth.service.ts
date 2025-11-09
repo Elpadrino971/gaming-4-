@@ -77,6 +77,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Handle login streak
+    const streakInfo = await this.updateLoginStreak(user.id);
+
     // Update last login
     await this.prisma.user.update({
       where: { id: user.id },
@@ -95,7 +98,11 @@ export class AuthService {
         role: user.role,
         credits: user.credits,
         level: user.level,
+        isVip: user.isVip,
+        loginStreak: streakInfo.currentStreak,
+        maxStreak: streakInfo.maxStreak,
       },
+      streakBonus: streakInfo.bonusEarned,
       ...tokens,
     };
   }
@@ -221,5 +228,98 @@ export class AuthService {
         },
       }),
     ]);
+  }
+
+  /**
+   * Update login streak and give bonuses
+   */
+  private async updateLoginStreak(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return { currentStreak: 0, maxStreak: 0, bonusEarned: 0 };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const lastLogin = user.lastLoginDate
+      ? new Date(user.lastLoginDate)
+      : null;
+
+    if (lastLogin) {
+      lastLogin.setHours(0, 0, 0, 0);
+    }
+
+    let newStreak = 1;
+    let bonusEarned = 0;
+
+    if (lastLogin) {
+      const daysDiff = Math.floor(
+        (today.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24),
+      );
+
+      if (daysDiff === 0) {
+        // Already logged in today
+        return {
+          currentStreak: user.loginStreak,
+          maxStreak: user.maxStreak,
+          bonusEarned: 0,
+        };
+      } else if (daysDiff === 1) {
+        // Consecutive day
+        newStreak = user.loginStreak + 1;
+      } else {
+        // Streak broken
+        newStreak = 1;
+      }
+    }
+
+    // Calculate bonus based on streak
+    const streakBonuses = {
+      1: 10,
+      2: 20,
+      3: 30,
+      7: 100, // Week streak
+      14: 250, // 2 weeks
+      30: 1000, // Month streak
+    };
+
+    bonusEarned = streakBonuses[newStreak] || newStreak * 10;
+
+    const newMaxStreak = Math.max(newStreak, user.maxStreak);
+
+    // Update user
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        loginStreak: newStreak,
+        lastLoginDate: new Date(),
+        maxStreak: newMaxStreak,
+        credits: { increment: bonusEarned },
+      },
+    });
+
+    // Create credit transaction
+    if (bonusEarned > 0) {
+      await this.prisma.creditTransaction.create({
+        data: {
+          userId,
+          type: 'STREAK_BONUS',
+          amount: bonusEarned,
+          balanceBefore: user.credits,
+          balanceAfter: Number(user.credits) + bonusEarned,
+          description: `Daily login streak bonus (Day ${newStreak})`,
+        },
+      });
+    }
+
+    return {
+      currentStreak: newStreak,
+      maxStreak: newMaxStreak,
+      bonusEarned,
+    };
   }
 }

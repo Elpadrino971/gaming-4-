@@ -55,6 +55,16 @@ model User {
   totalGamesPlayed Int      @default(0)
   totalWins     Int         @default(0)
 
+  // VIP Subscription
+  isVip         Boolean     @default(false)
+  vipSince      DateTime?
+  vipExpiresAt  DateTime?
+
+  // Streak System
+  loginStreak   Int         @default(0)
+  lastLoginDate DateTime?
+  maxStreak     Int         @default(0)
+
   // Referral
   referralCode  String      @unique @default(cuid())
   referredBy    String?
@@ -74,6 +84,8 @@ model User {
   payments      Payment[]
   addresses     Address[]
   notifications Notification[]
+  subscriptions Subscription[]
+  missions      UserMission[]
 
   @@index([email])
   @@index([username])
@@ -110,7 +122,10 @@ model Address {
 // ============================================
 
 enum GameType {
-  MINI_BINGO_EXPRESS    // Quick 2-3 min games
+  MINI_BINGO_STANDARD   // Standard 1€ entry, rake 30%
+  MINI_BINGO_PREMIUM    // Premium 5€ entry, rake 25%
+  MINI_BINGO_SPEED      // Speed 0.50€ entry, rake 35%
+  MINI_BINGO_FREE       // Free daily game
   PROGRESSIVE_BINGO     // Games with progressive jackpots (Phase 2)
 }
 
@@ -130,8 +145,14 @@ model Game {
   // Game settings
   minPlayers      Int             @default(3)
   maxPlayers      Int             @default(12)
-  entryFee        Decimal         @db.Decimal(10, 2) // in EUR
-  prizePool       Decimal         @db.Decimal(10, 2) // in Credits
+  entryFee        Decimal         @db.Decimal(10, 2) // in EUR or Credits
+
+  // Economic Model
+  totalCollected  Decimal         @db.Decimal(10, 2) // Total from all players
+  rake            Decimal         @db.Decimal(10, 2) // Platform profit (%)
+  rakeAmount      Decimal         @db.Decimal(10, 2) // Actual € amount
+  basePrizePool   Decimal         @db.Decimal(10, 2) // Before multiplier
+  finalPrizePool  Decimal         @db.Decimal(10, 2) // After multiplier
 
   // Game data
   drawnNumbers    Int[]           // Numbers already drawn
@@ -198,6 +219,9 @@ enum TransactionType {
   PURCHASE         // Bought credits
   SHOP_PURCHASE    // Spent in shop
   REFERRAL_BONUS   // Bonus from referral
+  MISSION_REWARD   // Completed mission
+  STREAK_BONUS     // Daily login streak
+  VIP_BONUS        // VIP bonus credits
   DAILY_WHEEL      // Won from daily wheel (Phase 2)
   ADMIN_ADJUSTMENT // Admin manual adjustment
   REFUND           // Refund
@@ -375,6 +399,7 @@ enum PaymentType {
   ORDER           // Shop order
   CREDIT_PURCHASE // Buy credits
   GAME_ENTRY      // Buy game ticket
+  VIP_SUBSCRIPTION // VIP subscription
 }
 
 model Payment {
@@ -475,4 +500,174 @@ model AdminLog {
   @@index([adminId])
   @@index([createdAt])
   @@map("admin_logs")
+}
+
+// ============================================
+// VIP SUBSCRIPTION
+// ============================================
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING
+}
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  userId                String
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status                SubscriptionStatus @default(PENDING)
+
+  // Stripe
+  stripeSubscriptionId  String?            @unique
+  stripeCustomerId      String?
+  stripePriceId         String?
+
+  // Subscription details
+  planName              String             @default("VIP")
+  pricePerMonth         Decimal            @db.Decimal(10, 2)
+
+  // Dates
+  startDate             DateTime
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  cancelAt              DateTime?
+  canceledAt            DateTime?
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+// ============================================
+// MISSIONS SYSTEM
+// ============================================
+
+enum MissionType {
+  PLAY_GAMES       // Play X games
+  WIN_GAMES        // Win X games
+  DAILY_LOGIN      // Login daily
+  SPEND_CREDITS    // Spend X credits
+  REFER_FRIEND     // Refer a friend
+  SHOP_PURCHASE    // Buy from shop
+  WIN_STREAK       // Win X games in a row
+}
+
+enum MissionFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ONE_TIME
+}
+
+model Mission {
+  id              String           @id @default(cuid())
+
+  type            MissionType
+  frequency       MissionFrequency
+
+  title           String
+  description     String
+
+  // Requirements
+  targetValue     Int              // Number to reach (e.g., 3 games)
+
+  // Rewards
+  creditsReward   Int              @default(0)
+  xpReward        Int              @default(0)
+
+  // Validity
+  isActive        Boolean          @default(true)
+  startDate       DateTime?
+  endDate         DateTime?
+
+  // Order for display
+  priority        Int              @default(0)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  userMissions    UserMission[]
+
+  @@index([type])
+  @@index([frequency])
+  @@index([isActive])
+  @@map("missions")
+}
+
+enum MissionStatus {
+  AVAILABLE
+  IN_PROGRESS
+  COMPLETED
+  CLAIMED
+  EXPIRED
+}
+
+model UserMission {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  missionId       String
+  mission         Mission        @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  status          MissionStatus  @default(AVAILABLE)
+
+  // Progress
+  currentValue    Int            @default(0)
+  targetValue     Int            // Copied from mission for history
+
+  // Dates
+  assignedAt      DateTime       @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  claimedAt       DateTime?
+  expiresAt       DateTime?
+
+  @@unique([userId, missionId])
+  @@index([userId])
+  @@index([missionId])
+  @@index([status])
+  @@map("user_missions")
+}
+
+// ============================================
+// PLATFORM STATISTICS (for financial dashboard)
+// ============================================
+
+model DailyStats {
+  id                String   @id @default(cuid())
+  date              DateTime @unique @db.Date
+
+  // Users
+  newUsers          Int      @default(0)
+  activeUsers       Int      @default(0)
+  vipUsers          Int      @default(0)
+
+  // Games
+  gamesPlayed       Int      @default(0)
+  totalPlayers      Int      @default(0)
+
+  // Financial (in EUR)
+  totalRevenue      Decimal  @default(0) @db.Decimal(10, 2)
+  rakeCollected     Decimal  @default(0) @db.Decimal(10, 2)
+  creditsDistributed Decimal @default(0) @db.Decimal(10, 2)
+  vipRevenue        Decimal  @default(0) @db.Decimal(10, 2)
+  shopRevenue       Decimal  @default(0) @db.Decimal(10, 2)
+
+  // Conversions
+  signups           Int      @default(0)
+  firstPurchases    Int      @default(0)
+
+  createdAt         DateTime @default(now())
+
+  @@index([date])
+  @@map("daily_stats")
 }

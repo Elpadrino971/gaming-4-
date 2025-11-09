@@ -25,9 +25,9 @@ export class GamesController {
   @Post('create')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new game' })
-  async createGame(@Body() body: { entryFee?: number }) {
-    return this.gamesService.createGame(body.entryFee || 1);
+  @ApiOperation({ summary: 'Create a new game (STANDARD, PREMIUM, SPEED, FREE)' })
+  async createGame(@Body() body: { gameType?: string }) {
+    return this.gamesService.createGame(body.gameType || 'STANDARD');
   }
 
   @Get(':id')

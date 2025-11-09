@@ -9,6 +9,8 @@ import { CreditsModule } from './credits/credits.module';
 import { ShopModule } from './shop/shop.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
+import { MissionsModule } from './missions/missions.module';
+import { VipModule } from './vip/vip.module';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { AdminModule } from './admin/admin.module';
     ShopModule,
     PaymentsModule,
     AdminModule,
+    MissionsModule,
+    VipModule,
   ],
 })
 export class AppModule {}
