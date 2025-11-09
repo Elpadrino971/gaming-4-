@@ -1,0 +1,478 @@
+// Prisma Schema for BingoShop Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum UserLevel {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  username      String      @unique
+  password      String      // bcrypt hashed
+
+  // Profile
+  firstName     String?
+  lastName      String?
+  avatarUrl     String?
+  phoneNumber   String?
+
+  // Status & Role
+  role          UserRole    @default(USER)
+  status        UserStatus  @default(ACTIVE)
+  level         UserLevel   @default(BRONZE)
+
+  // Gamification
+  credits       Decimal     @default(0) @db.Decimal(10, 2)
+  xp            Int         @default(0)
+  totalGamesPlayed Int      @default(0)
+  totalWins     Int         @default(0)
+
+  // Referral
+  referralCode  String      @unique @default(cuid())
+  referredBy    String?
+  referrer      User?       @relation("Referrals", fields: [referredBy], references: [id])
+  referrals     User[]      @relation("Referrals")
+
+  // Timestamps
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastLoginAt   DateTime?
+  emailVerifiedAt DateTime?
+
+  // Relations
+  gameParticipations GameParticipant[]
+  creditTransactions CreditTransaction[]
+  orders        Order[]
+  payments      Payment[]
+  addresses     Address[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([username])
+  @@index([referralCode])
+  @@map("users")
+}
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName      String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  postalCode    String
+  country       String   @default("FR")
+  phoneNumber   String
+
+  isDefault     Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders        Order[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ============================================
+// GAME MANAGEMENT
+// ============================================
+
+enum GameType {
+  MINI_BINGO_EXPRESS    // Quick 2-3 min games
+  PROGRESSIVE_BINGO     // Games with progressive jackpots (Phase 2)
+}
+
+enum GameStatus {
+  WAITING     // Waiting for players
+  STARTING    // Countdown before start
+  IN_PROGRESS // Game is running
+  COMPLETED   // Game finished
+  CANCELLED   // Game cancelled
+}
+
+model Game {
+  id              String          @id @default(cuid())
+  type            GameType
+  status          GameStatus      @default(WAITING)
+
+  // Game settings
+  minPlayers      Int             @default(3)
+  maxPlayers      Int             @default(12)
+  entryFee        Decimal         @db.Decimal(10, 2) // in EUR
+  prizePool       Decimal         @db.Decimal(10, 2) // in Credits
+
+  // Game data
+  drawnNumbers    Int[]           // Numbers already drawn
+  gridSize        Int             @default(5) // 5x5 grid
+
+  // Provably Fair
+  seedHash        String          // Hash of the seed before game
+  seed            String?         // Revealed after game
+
+  // Multiplier (random x1, x2, x5, x10)
+  multiplier      Int             @default(1)
+
+  // Winner
+  winnerId        String?
+  winnerPrize     Decimal?        @db.Decimal(10, 2)
+
+  // Timestamps
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  participants    GameParticipant[]
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("games")
+}
+
+model GameParticipant {
+  id              String    @id @default(cuid())
+  gameId          String
+  game            Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Bingo grid for this participant
+  grid            Int[][]   // 5x5 grid of numbers
+  markedCells     Boolean[] // Which cells are marked
+
+  // Results
+  isWinner        Boolean   @default(false)
+  prizeWon        Decimal?  @db.Decimal(10, 2)
+  finishedAt      DateTime?
+
+  joinedAt        DateTime  @default(now())
+
+  @@unique([gameId, userId])
+  @@index([gameId])
+  @@index([userId])
+  @@map("game_participants")
+}
+
+// ============================================
+// CREDITS SYSTEM
+// ============================================
+
+enum TransactionType {
+  GAME_WIN         // Won from a game
+  GAME_ENTRY       // Paid to enter a game
+  PURCHASE         // Bought credits
+  SHOP_PURCHASE    // Spent in shop
+  REFERRAL_BONUS   // Bonus from referral
+  DAILY_WHEEL      // Won from daily wheel (Phase 2)
+  ADMIN_ADJUSTMENT // Admin manual adjustment
+  REFUND           // Refund
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model CreditTransaction {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            TransactionType
+  status          TransactionStatus @default(COMPLETED)
+
+  amount          Decimal           @db.Decimal(10, 2) // Positive for credit, negative for debit
+  balanceBefore   Decimal           @db.Decimal(10, 2)
+  balanceAfter    Decimal           @db.Decimal(10, 2)
+
+  // References
+  gameId          String?
+  orderId         String?
+  paymentId       String?
+
+  description     String?
+  metadata        Json?
+
+  createdAt       DateTime          @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("credit_transactions")
+}
+
+// ============================================
+// SHOP & PRODUCTS
+// ============================================
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+model Product {
+  id              String        @id @default(cuid())
+
+  name            String
+  description     String        @db.Text
+  imageUrl        String?
+  images          String[]      // Multiple images
+
+  // Pricing (in credits)
+  priceInCredits  Decimal       @db.Decimal(10, 2)
+  priceInEur      Decimal?      @db.Decimal(10, 2) // Optional EUR price
+
+  // Stock
+  stock           Int           @default(0)
+  unlimited       Boolean       @default(false)
+
+  status          ProductStatus @default(ACTIVE)
+
+  // Amazon integration
+  amazonASIN      String?       // Amazon product ID
+  amazonUrl       String?
+
+  // Categories & tags
+  category        String?
+  tags            String[]
+
+  // Stats
+  totalSold       Int           @default(0)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  orderItems      OrderItem[]
+
+  @@index([status])
+  @@index([category])
+  @@map("products")
+}
+
+// ============================================
+// ORDERS & DELIVERY
+// ============================================
+
+enum OrderStatus {
+  PENDING         // Order created
+  PAID            // Payment completed
+  PROCESSING      // Being prepared
+  SHIPPED         // Shipped
+  DELIVERED       // Delivered
+  CANCELLED       // Cancelled
+  REFUNDED        // Refunded
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique @default(cuid())
+
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status          OrderStatus   @default(PENDING)
+
+  // Pricing
+  totalCredits    Decimal       @db.Decimal(10, 2)
+  totalEur        Decimal       @default(0) @db.Decimal(10, 2)
+
+  // Delivery address
+  addressId       String
+  address         Address       @relation(fields: [addressId], references: [id])
+
+  // Tracking
+  trackingNumber  String?
+  trackingUrl     String?
+  carrier         String?
+
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+
+  // Relations
+  items           OrderItem[]
+  payment         Payment?
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+
+  quantity        Int      @default(1)
+  priceInCredits  Decimal  @db.Decimal(10, 2)
+  priceInEur      Decimal  @default(0) @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ============================================
+// PAYMENT (STRIPE)
+// ============================================
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentType {
+  ORDER           // Shop order
+  CREDIT_PURCHASE // Buy credits
+  GAME_ENTRY      // Buy game ticket
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            PaymentType
+  status          PaymentStatus @default(PENDING)
+
+  // Stripe
+  stripePaymentIntentId String?  @unique
+  stripeChargeId        String?
+
+  // Amount
+  amount          Decimal       @db.Decimal(10, 2) // in EUR
+  currency        String        @default("EUR")
+
+  // References
+  orderId         String?       @unique
+  order           Order?        @relation(fields: [orderId], references: [id])
+
+  // Metadata
+  metadata        Json?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationType {
+  GAME_STARTED
+  GAME_WON
+  CREDITS_RECEIVED
+  ORDER_SHIPPED
+  REFERRAL_BONUS
+  SYSTEM
+}
+
+model Notification {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            NotificationType
+  title           String
+  message         String            @db.Text
+
+  read            Boolean           @default(false)
+
+  // Optional link
+  link            String?
+
+  createdAt       DateTime          @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
+
+// ============================================
+// ADMIN LOGS
+// ============================================
+
+enum AdminActionType {
+  USER_SUSPENDED
+  USER_BANNED
+  USER_CREDITS_ADJUSTED
+  GAME_CANCELLED
+  ORDER_REFUNDED
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  SYSTEM_CONFIG
+}
+
+model AdminLog {
+  id              String          @id @default(cuid())
+  adminId         String
+
+  action          AdminActionType
+  targetType      String          // "User", "Game", "Order", etc.
+  targetId        String
+
+  description     String          @db.Text
+  metadata        Json?
+
+  createdAt       DateTime        @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
