@@ -99,6 +99,50 @@ export const vipAPI = {
   getSubscription: () => api.get('/vip/subscription'),
 }
 
+// Referrals API
+export const referralsAPI = {
+  getMyCode: () => api.get('/referrals/my-code'),
+  getStats: () => api.get('/referrals/stats'),
+  getLeaderboard: (limit?: number) => api.get('/referrals/leaderboard', { params: { limit } }),
+}
+
+// Daily Wheel API
+export const wheelAPI = {
+  canSpin: () => api.get('/wheel/can-spin'),
+  spin: () => api.post('/wheel/spin'),
+  getHistory: (limit?: number) => api.get('/wheel/history', { params: { limit } }),
+  getConfig: () => api.get('/wheel/config'),
+}
+
+// Achievements API
+export const achievementsAPI = {
+  getMy: () => api.get('/achievements/my'),
+  getAll: () => api.get('/achievements/all'),
+}
+
+// Tournaments API
+export const tournamentsAPI = {
+  getActive: () => api.get('/tournaments'),
+  register: (tournamentId: string) => api.post(`/tournaments/${tournamentId}/register`),
+  getLeaderboard: (tournamentId: string) => api.get(`/tournaments/${tournamentId}/leaderboard`),
+}
+
+// Battle Pass API
+export const battlePassAPI = {
+  getCurrent: () => api.get('/battle-pass/current'),
+  getMyProgress: () => api.get('/battle-pass/my-progress'),
+  purchase: () => api.post('/battle-pass/purchase'),
+  claimReward: (tier: number) => api.post(`/battle-pass/claim/${tier}`),
+}
+
+// Cosmetics API
+export const cosmeticsAPI = {
+  getAll: (type?: string) => api.get('/cosmetics', { params: { type } }),
+  getMy: () => api.get('/cosmetics/my'),
+  purchase: (cosmeticId: string) => api.post(`/cosmetics/${cosmeticId}/purchase`),
+  equip: (cosmeticId: string) => api.post(`/cosmetics/${cosmeticId}/equip`),
+}
+
 // Admin API
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),

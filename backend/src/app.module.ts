@@ -11,6 +11,13 @@ import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { MissionsModule } from './missions/missions.module';
 import { VipModule } from './vip/vip.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { WheelModule } from './wheel/wheel.module';
+import { AchievementsModule } from './achievements/achievements.module';
+import { TournamentsModule } from './tournaments/tournaments.module';
+import { BattlePassModule } from './battle-pass/battle-pass.module';
+import { CosmeticsModule } from './cosmetics/cosmetics.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -20,11 +27,11 @@ import { VipModule } from './vip/vip.module';
       envFilePath: '.env',
     }),
 
-    // Rate limiting
+    // Rate limiting & Security
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute
+        limit: 100, // 100 requests per minute (general)
       },
     ]),
 
@@ -41,6 +48,15 @@ import { VipModule } from './vip/vip.module';
     AdminModule,
     MissionsModule,
     VipModule,
+
+    // New gamification features
+    ReferralsModule,
+    WheelModule,
+    AchievementsModule,
+    TournamentsModule,
+    BattlePassModule,
+    CosmeticsModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

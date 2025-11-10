@@ -671,3 +671,411 @@ model DailyStats {
   @@index([date])
   @@map("daily_stats")
 }
+
+// ============================================
+// REFERRAL REWARDS TRACKING
+// ============================================
+
+model ReferralReward {
+  id              String   @id @default(cuid())
+  referrerId      String   // User who referred
+  referredUserId  String   // User who was referred
+
+  // Rewards earned
+  creditsEarned   Decimal  @default(0) @db.Decimal(10, 2)
+  lifetimeEarned  Decimal  @default(0) @db.Decimal(10, 2) // 5% of referral's winnings
+
+  // Status
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([referrerId])
+  @@index([referredUserId])
+  @@map("referral_rewards")
+}
+
+// ============================================
+// DAILY WHEEL OF FORTUNE
+// ============================================
+
+enum WheelRewardType {
+  CREDITS
+  FREE_GAME
+  VIP_DAY
+  JACKPOT
+  XP
+}
+
+model DailyWheelSpin {
+  id              String          @id @default(cuid())
+  userId          String
+
+  // Result
+  rewardType      WheelRewardType
+  rewardValue     Int             // Credits/XP amount or 1 for boolean rewards
+
+  // Timestamp
+  createdAt       DateTime        @default(now())
+  claimedAt       DateTime?
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("daily_wheel_spins")
+}
+
+// ============================================
+// ACHIEVEMENTS & BADGES
+// ============================================
+
+enum AchievementCategory {
+  GAMES
+  WINS
+  SOCIAL
+  SPENDING
+  SPECIAL
+}
+
+model Achievement {
+  id              String              @id @default(cuid())
+
+  key             String              @unique // FIRST_BLOOD, ON_FIRE, etc.
+  name            String
+  description     String
+  icon            String              // Emoji or icon name
+
+  category        AchievementCategory
+
+  // Requirements
+  requirement     Json                // Flexible requirements
+
+  // Rewards
+  creditsReward   Int                 @default(0)
+  xpReward        Int                 @default(0)
+
+  // Rarity
+  isRare          Boolean             @default(false)
+
+  createdAt       DateTime            @default(now())
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@index([category])
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id              String      @id @default(cuid())
+  userId          String
+
+  achievementId   String
+  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  // Progress
+  progress        Int         @default(0)
+  target          Int
+
+  // Status
+  isUnlocked      Boolean     @default(false)
+  unlockedAt      DateTime?
+
+  createdAt       DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+  @@map("user_achievements")
+}
+
+// ============================================
+// TOURNAMENTS
+// ============================================
+
+enum TournamentStatus {
+  UPCOMING
+  REGISTRATION_OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Tournament {
+  id              String            @id @default(cuid())
+
+  name            String
+  description     String            @db.Text
+
+  // Entry
+  entryFee        Decimal           @db.Decimal(10, 2)
+  maxParticipants Int               @default(100)
+
+  // Prize pool
+  basePrizePool   Decimal           @db.Decimal(10, 2)
+  totalPrizePool  Decimal           @db.Decimal(10, 2)
+
+  // Prize distribution (top 3)
+  firstPlacePct   Int               @default(70)
+  secondPlacePct  Int               @default(20)
+  thirdPlacePct   Int               @default(10)
+
+  // Winners
+  firstPlaceId    String?
+  secondPlaceId   String?
+  thirdPlaceId    String?
+
+  // Status
+  status          TournamentStatus  @default(UPCOMING)
+
+  // Schedule
+  registrationStart DateTime
+  registrationEnd   DateTime
+  startTime       DateTime
+  endTime         DateTime?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  participants    TournamentParticipant[]
+
+  @@index([status])
+  @@index([startTime])
+  @@map("tournaments")
+}
+
+model TournamentParticipant {
+  id              String      @id @default(cuid())
+
+  tournamentId    String
+  tournament      Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  userId          String
+
+  // Performance
+  gamesPlayed     Int         @default(0)
+  gamesWon        Int         @default(0)
+  totalWinnings   Decimal     @default(0) @db.Decimal(10, 2)
+
+  // Ranking
+  rank            Int?
+  prizeWon        Decimal?    @db.Decimal(10, 2)
+
+  joinedAt        DateTime    @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+  @@index([userId])
+  @@map("tournament_participants")
+}
+
+// ============================================
+// BATTLE PASS (SEASONAL)
+// ============================================
+
+enum BattlePassStatus {
+  ACTIVE
+  ENDED
+}
+
+model BattlePass {
+  id              String           @id @default(cuid())
+
+  seasonNumber    Int              @unique
+  name            String           // "Season 1: Winter Wonderland"
+  description     String           @db.Text
+
+  // Pricing
+  price           Decimal          @db.Decimal(10, 2) // 4.99€
+
+  // Duration
+  startDate       DateTime
+  endDate         DateTime
+
+  status          BattlePassStatus @default(ACTIVE)
+
+  // Tiers
+  maxTier         Int              @default(50)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  rewards         BattlePassReward[]
+  userProgress    UserBattlePass[]
+
+  @@index([status])
+  @@index([seasonNumber])
+  @@map("battle_passes")
+}
+
+model BattlePassReward {
+  id              String      @id @default(cuid())
+
+  battlePassId    String
+  battlePass      BattlePass  @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
+
+  tier            Int
+
+  // Reward
+  rewardType      String      // CREDITS, COSMETIC, XP, FREE_GAME
+  rewardValue     Int
+  rewardMetadata  Json?       // For cosmetic ID, etc.
+
+  // Free or premium
+  isFree          Boolean     @default(false)
+  isPremium       Boolean     @default(true)
+
+  @@index([battlePassId])
+  @@index([tier])
+  @@map("battle_pass_rewards")
+}
+
+model UserBattlePass {
+  id              String      @id @default(cuid())
+
+  userId          String
+
+  battlePassId    String
+  battlePass      BattlePass  @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
+
+  // Purchase status
+  hasPremium      Boolean     @default(false)
+  purchasedAt     DateTime?
+
+  // Progress
+  currentTier     Int         @default(0)
+  currentXP       Int         @default(0)
+  xpPerTier       Int         @default(1000)
+
+  // Claimed rewards
+  claimedTiers    Int[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([userId, battlePassId])
+  @@index([userId])
+  @@index([battlePassId])
+  @@map("user_battle_passes")
+}
+
+// ============================================
+// COSMETICS (SKINS FOR BINGO GRID)
+// ============================================
+
+enum CosmeticType {
+  GRID_THEME      // Bingo grid theme
+  MARKER_STYLE    // Marker animation
+  SOUND_PACK      // Custom sounds
+  AVATAR_FRAME    // Profile frame
+}
+
+enum CosmeticRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+model CosmeticItem {
+  id              String          @id @default(cuid())
+
+  key             String          @unique // "neon_grid", "gold_marker", etc.
+  name            String
+  description     String
+
+  type            CosmeticType
+  rarity          CosmeticRarity  @default(COMMON)
+
+  // Preview
+  previewUrl      String?
+
+  // Pricing
+  priceCredits    Int             // 100-500 cr
+
+  // Availability
+  isAvailable     Boolean         @default(true)
+  isExclusive     Boolean         @default(false) // Battle pass exclusive
+
+  createdAt       DateTime        @default(now())
+
+  // Relations
+  userCosmetics   UserCosmetic[]
+
+  @@index([type])
+  @@index([isAvailable])
+  @@map("cosmetic_items")
+}
+
+model UserCosmetic {
+  id              String        @id @default(cuid())
+
+  userId          String
+
+  cosmeticId      String
+  cosmetic        CosmeticItem  @relation(fields: [cosmeticId], references: [id], onDelete: Cascade)
+
+  // Status
+  isEquipped      Boolean       @default(false)
+
+  acquiredAt      DateTime      @default(now())
+
+  @@unique([userId, cosmeticId])
+  @@index([userId])
+  @@index([cosmeticId])
+  @@map("user_cosmetics")
+}
+
+// ============================================
+// IN-GAME CHAT
+// ============================================
+
+model ChatMessage {
+  id              String   @id @default(cuid())
+
+  gameId          String?  // Null for global chat
+  userId          String
+  username        String   // Denormalized for performance
+
+  message         String   @db.Text
+
+  // Moderation
+  isDeleted       Boolean  @default(false)
+  deletedBy       String?
+  deletedReason   String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([gameId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+// ============================================
+// PUSH NOTIFICATIONS SUBSCRIPTIONS
+// ============================================
+
+model PushSubscription {
+  id              String   @id @default(cuid())
+
+  userId          String
+
+  // Web Push API subscription object
+  endpoint        String   @unique
+  keys            Json     // { p256dh, auth }
+
+  // Device info
+  userAgent       String?
+
+  // Preferences
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
