@@ -6,6 +6,10 @@ import { useAuthStore } from '@/lib/store'
 import { usersAPI, creditsAPI, gamesAPI } from '@/lib/api'
 import { Coins, Trophy, Flame, TrendingUp, Crown, Gift } from 'lucide-react'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
+import GlassCard from '@/components/GlassCard'
+import ParallaxContainer from '@/components/ParallaxContainer'
+import FloatingElement from '@/components/FloatingElement'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -95,82 +99,207 @@ export default function DashboardPage() {
         {/* Quick Stats Grid */}
         <div className="grid md:grid-cols-4 gap-6 mb-6">
           {/* Credits */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <Coins className="w-8 h-8 text-yellow-500" />
-              <h3 className="text-lg font-semibold text-gray-700">Crédits</h3>
-            </div>
-            <div className="text-3xl font-bold text-primary-600">
-              {Number(user?.credits || 0).toLocaleString()}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">
-              ≈ {(Number(user?.credits || 0) * 0.01).toFixed(2)}€
-            </div>
-          </div>
+          <ParallaxContainer speed={0.3}>
+            <GlassCard className="p-6">
+              <FloatingElement delay={0} duration={3}>
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Coins className="w-8 h-8 text-yellow-500" />
+                  </motion.div>
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Crédits</h3>
+                </div>
+                <motion.div
+                  className="text-3xl font-bold text-primary-600 dark:text-primary-400"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+                >
+                  {Number(user?.credits || 0).toLocaleString()}
+                </motion.div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  ≈ {(Number(user?.credits || 0) * 0.01).toFixed(2)}€
+                </div>
+              </FloatingElement>
+            </GlassCard>
+          </ParallaxContainer>
 
           {/* Games Played */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <Trophy className="w-8 h-8 text-blue-500" />
-              <h3 className="text-lg font-semibold text-gray-700">Parties</h3>
-            </div>
-            <div className="text-3xl font-bold text-blue-600">
-              {stats?.totalGamesPlayed || 0}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">
-              {stats?.totalWins || 0} victoires
-            </div>
-          </div>
+          <ParallaxContainer speed={0.4}>
+            <GlassCard className="p-6">
+              <FloatingElement delay={0.1} duration={3.2}>
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Trophy className="w-8 h-8 text-blue-500" />
+                  </motion.div>
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Parties</h3>
+                </div>
+                <motion.div
+                  className="text-3xl font-bold text-blue-600 dark:text-blue-400"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
+                >
+                  {stats?.totalGamesPlayed || 0}
+                </motion.div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {stats?.totalWins || 0} victoires
+                </div>
+              </FloatingElement>
+            </GlassCard>
+          </ParallaxContainer>
 
           {/* Win Rate */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <TrendingUp className="w-8 h-8 text-green-500" />
-              <h3 className="text-lg font-semibold text-gray-700">Taux victoire</h3>
-            </div>
-            <div className="text-3xl font-bold text-green-600">
-              {stats?.winRate?.toFixed(1) || 0}%
-            </div>
-            <div className="text-sm text-gray-500 mt-1">Performance</div>
-          </div>
+          <ParallaxContainer speed={0.5}>
+            <GlassCard className="p-6">
+              <FloatingElement delay={0.2} duration={3.4}>
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
+                    <TrendingUp className="w-8 h-8 text-green-500" />
+                  </motion.div>
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Taux victoire</h3>
+                </div>
+                <motion.div
+                  className="text-3xl font-bold text-green-600 dark:text-green-400"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200, delay: 0.3 }}
+                >
+                  {stats?.winRate?.toFixed(1) || 0}%
+                </motion.div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">Performance</div>
+              </FloatingElement>
+            </GlassCard>
+          </ParallaxContainer>
 
           {/* Level */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <Gift className="w-8 h-8 text-purple-500" />
-              <h3 className="text-lg font-semibold text-gray-700">Niveau</h3>
-            </div>
-            <div className="text-3xl font-bold text-purple-600">
-              {user?.level || 'BRONZE'}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">{user?.xp || 0} XP</div>
-          </div>
+          <ParallaxContainer speed={0.6}>
+            <GlassCard className="p-6" glow>
+              <FloatingElement delay={0.3} duration={3.6}>
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <Gift className="w-8 h-8 text-purple-500" />
+                  </motion.div>
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Niveau</h3>
+                </div>
+                <motion.div
+                  className="text-3xl font-bold text-purple-600 dark:text-purple-400"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200, delay: 0.4 }}
+                >
+                  {user?.level || 'BRONZE'}
+                </motion.div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{user?.xp || 0} XP</div>
+              </FloatingElement>
+            </GlassCard>
+          </ParallaxContainer>
         </div>
 
         {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-6 mb-6">
-          <Link
-            href="/lobby"
-            className="bg-gradient-to-r from-primary-500 to-primary-700 text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:scale-105"
-          >
-            <h3 className="text-2xl font-bold mb-2">🎮 Jouer</h3>
-            <p className="opacity-90">Rejoins une partie de bingo maintenant !</p>
+          <Link href="/lobby">
+            <motion.div
+              className="bg-gradient-to-r from-primary-500 to-primary-700 text-white p-8 rounded-2xl shadow-xl cursor-pointer relative overflow-hidden"
+              whileHover={{
+                scale: 1.05,
+                rotateY: 5,
+                boxShadow: '0 25px 50px rgba(14, 165, 233, 0.4)'
+              }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              {/* Animated background */}
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-primary-400/30 to-primary-600/30"
+                animate={{
+                  x: ['-100%', '100%'],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: 'linear'
+                }}
+              />
+              <div className="relative z-10">
+                <h3 className="text-2xl font-bold mb-2">🎮 Jouer</h3>
+                <p className="opacity-90">Rejoins une partie de bingo maintenant !</p>
+              </div>
+            </motion.div>
           </Link>
 
-          <Link
-            href="/missions"
-            className="bg-gradient-to-r from-orange-500 to-orange-700 text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:scale-105"
-          >
-            <h3 className="text-2xl font-bold mb-2">🎯 Missions</h3>
-            <p className="opacity-90">Complète tes missions quotidiennes</p>
+          <Link href="/missions">
+            <motion.div
+              className="bg-gradient-to-r from-orange-500 to-orange-700 text-white p-8 rounded-2xl shadow-xl cursor-pointer relative overflow-hidden"
+              whileHover={{
+                scale: 1.05,
+                rotateY: 5,
+                boxShadow: '0 25px 50px rgba(249, 115, 22, 0.4)'
+              }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-orange-400/30 to-orange-600/30"
+                animate={{
+                  x: ['-100%', '100%'],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: 'linear',
+                  delay: 0.5
+                }}
+              />
+              <div className="relative z-10">
+                <h3 className="text-2xl font-bold mb-2">🎯 Missions</h3>
+                <p className="opacity-90">Complète tes missions quotidiennes</p>
+              </div>
+            </motion.div>
           </Link>
 
-          <Link
-            href="/shop"
-            className="bg-gradient-to-r from-purple-500 to-purple-700 text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:scale-105"
-          >
-            <h3 className="text-2xl font-bold mb-2">🛍️ Boutique</h3>
-            <p className="opacity-90">Dépense tes crédits maintenant</p>
+          <Link href="/shop">
+            <motion.div
+              className="bg-gradient-to-r from-purple-500 to-purple-700 text-white p-8 rounded-2xl shadow-xl cursor-pointer relative overflow-hidden"
+              whileHover={{
+                scale: 1.05,
+                rotateY: 5,
+                boxShadow: '0 25px 50px rgba(168, 85, 247, 0.4)'
+              }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-purple-400/30 to-purple-600/30"
+                animate={{
+                  x: ['-100%', '100%'],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: 'linear',
+                  delay: 1
+                }}
+              />
+              <div className="relative z-10">
+                <h3 className="text-2xl font-bold mb-2">🛍️ Boutique</h3>
+                <p className="opacity-90">Dépense tes crédits maintenant</p>
+              </div>
+            </motion.div>
           </Link>
         </div>
 

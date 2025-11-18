@@ -7,6 +7,9 @@ import { wheelAPI } from '@/lib/api'
 import { Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
+import GlassCard from '@/components/GlassCard'
+import FloatingElement from '@/components/FloatingElement'
 
 export default function WheelPage() {
   const router = useRouter()
@@ -129,63 +132,212 @@ export default function WheelPage() {
         </div>
 
         {/* Wheel */}
-        <div className="bg-white rounded-2xl p-8 mb-6 shadow-xl">
-          <div className="relative mx-auto w-80 h-80">
-            {/* Wheel Circle */}
-            <div
-              className={`absolute inset-0 rounded-full border-8 border-yellow-400 bg-gradient-to-br from-yellow-300 to-yellow-500 shadow-2xl ${
-                spinning ? 'animate-spin' : ''
-              }`}
-              style={{ animationDuration: '3s' }}
+        <GlassCard className="p-8 mb-6" hover={false} glow={spinning}>
+          <div
+            className="relative mx-auto w-80 h-80"
+            style={{ perspective: '1000px' }}
+          >
+            {/* 3D Wheel Container */}
+            <motion.div
+              className="absolute inset-0"
+              style={{ transformStyle: 'preserve-3d' }}
+              animate={{
+                rotateY: spinning ? 360 : 0,
+                rotateZ: spinning ? 1440 : 0,
+              }}
+              transition={{
+                duration: 3,
+                ease: 'easeOut',
+                rotateY: { repeat: spinning ? Infinity : 0, duration: 3 },
+                rotateZ: { duration: 3 }
+              }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-6xl">{spinning ? '🎲' : '🎰'}</div>
-              </div>
-            </div>
+              {/* Wheel Circle with 3D depth */}
+              <div
+                className="absolute inset-0 rounded-full border-8 border-yellow-400 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 shadow-2xl"
+                style={{
+                  boxShadow: spinning
+                    ? '0 0 60px rgba(234, 179, 8, 0.8), 0 0 100px rgba(234, 179, 8, 0.5), inset 0 0 30px rgba(255, 255, 255, 0.5)'
+                    : '0 20px 40px rgba(0, 0, 0, 0.3), inset 0 0 30px rgba(255, 255, 255, 0.3)',
+                  transform: 'translateZ(20px)'
+                }}
+              >
+                {/* Wheel segments */}
+                <div className="absolute inset-4 rounded-full bg-gradient-to-br from-yellow-200 to-yellow-400 overflow-hidden">
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                    <div
+                      key={i}
+                      className="absolute inset-0"
+                      style={{
+                        background: i % 2 === 0
+                          ? 'linear-gradient(to right, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3))'
+                          : 'linear-gradient(to right, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.3))',
+                        transform: `rotate(${i * 45}deg)`,
+                        clipPath: 'polygon(50% 50%, 100% 0, 100% 50%)'
+                      }}
+                    />
+                  ))}
+                </div>
 
-            {/* Pointer */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-10">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-red-500"></div>
-            </div>
+                {/* Center icon with float effect */}
+                <FloatingElement className="absolute inset-0 flex items-center justify-center" duration={2}>
+                  <motion.div
+                    className="text-7xl"
+                    animate={{
+                      scale: spinning ? [1, 1.2, 1] : 1,
+                      rotate: spinning ? [0, 10, -10, 0] : 0
+                    }}
+                    transition={{
+                      duration: 0.5,
+                      repeat: spinning ? Infinity : 0
+                    }}
+                  >
+                    {spinning ? '🎲' : '🎰'}
+                  </motion.div>
+                </FloatingElement>
+
+                {/* Inner glow ring */}
+                <div
+                  className="absolute inset-2 rounded-full"
+                  style={{
+                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
+                    animation: spinning ? 'glow 1s ease-in-out infinite' : 'none'
+                  }}
+                />
+              </div>
+
+              {/* 3D depth rings */}
+              <div
+                className="absolute inset-0 rounded-full border-4 border-yellow-500/30"
+                style={{ transform: 'translateZ(10px)' }}
+              />
+              <div
+                className="absolute inset-0 rounded-full border-2 border-yellow-600/20"
+                style={{ transform: 'translateZ(5px)' }}
+              />
+            </motion.div>
+
+            {/* Pointer with 3D effect */}
+            <motion.div
+              className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-20"
+              animate={{
+                y: spinning ? [0, 10, 0] : 0,
+              }}
+              transition={{
+                duration: 0.3,
+                repeat: spinning ? Infinity : 0
+              }}
+              style={{ transform: 'translateZ(50px)' }}
+            >
+              <div className="relative">
+                <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[30px] border-transparent border-t-red-500 drop-shadow-2xl" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-transparent border-t-red-400" />
+              </div>
+            </motion.div>
           </div>
 
           {/* Spin Button */}
           <div className="text-center mt-8">
-            <button
+            <motion.button
               onClick={spin}
               disabled={spinning || spinsRemaining === 0}
-              className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-12 py-4 rounded-xl font-bold text-xl hover:shadow-2xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-12 py-4 rounded-xl font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
+              whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(168, 85, 247, 0.4)' }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
             >
-              {spinning ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  Tournez, tournez...
-                </span>
-              ) : spinsRemaining === 0 ? (
-                'Plus de tours aujourd\'hui'
-              ) : (
-                'TOURNER LA ROUE! 🎰'
-              )}
-            </button>
+              {/* Button shimmer effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+
+              <span className="relative z-10">
+                {spinning ? (
+                  <span className="flex items-center gap-2 justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    Tournez, tournez...
+                  </span>
+                ) : spinsRemaining === 0 ? (
+                  'Plus de tours aujourd\'hui'
+                ) : (
+                  'TOURNER LA ROUE! 🎰'
+                )}
+              </span>
+            </motion.button>
           </div>
 
           {/* Result Display */}
           {result && !spinning && (
-            <div className="mt-8 bg-gradient-to-r from-green-100 to-blue-100 rounded-xl p-6 text-center animate-bounce">
-              <div className="text-6xl mb-4">{getRewardIcon(result.type)}</div>
-              <div className="text-2xl font-bold text-gray-800 mb-2">
-                {result.label}
-              </div>
-              <div className="text-gray-600">
-                {result.type === 'CREDITS' && `+${result.value} crédits ajoutés !`}
-                {result.type === 'FREE_GAME' && `Partie gratuite débloquée !`}
-                {result.type === 'VIP_DAY' && `1 jour de VIP offert !`}
-                {result.type === 'JACKPOT' && `🎰 JACKPOT MASSIF! ${result.value} crédits!`}
-                {result.type === 'XP' && `+${result.value} XP gagnés !`}
-              </div>
-            </div>
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="mt-8 relative"
+              style={{ perspective: '1000px' }}
+            >
+              <motion.div
+                className="bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 rounded-xl p-6 text-center relative overflow-hidden"
+                animate={{
+                  y: [0, -10, 0],
+                  rotateX: [0, 5, 0, -5, 0],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: 'easeInOut'
+                }}
+                style={{
+                  transformStyle: 'preserve-3d',
+                  boxShadow: '0 20px 40px rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                {/* Confetti effect background */}
+                <div className="absolute inset-0 opacity-20">
+                  {[...Array(20)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                      }}
+                      animate={{
+                        scale: [0, 1, 0],
+                        rotate: [0, 360],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        delay: i * 0.1
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <motion.div
+                  className="text-6xl mb-4"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 10, -10, 0]
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    repeat: Infinity
+                  }}
+                >
+                  {getRewardIcon(result.type)}
+                </motion.div>
+                <div className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+                  {result.label}
+                </div>
+                <div className="text-gray-600 dark:text-gray-300">
+                  {result.type === 'CREDITS' && `+${result.value} crédits ajoutés !`}
+                  {result.type === 'FREE_GAME' && `Partie gratuite débloquée !`}
+                  {result.type === 'VIP_DAY' && `1 jour de VIP offert !`}
+                  {result.type === 'JACKPOT' && `🎰 JACKPOT MASSIF! ${result.value} crédits!`}
+                  {result.type === 'XP' && `+${result.value} XP gagnés !`}
+                </div>
+              </motion.div>
+            </motion.div>
           )}
-        </div>
+        </GlassCard>
 
         {/* History */}
         {history.length > 0 && (
