@@ -13,8 +13,12 @@ import FloatingElement from '@/components/FloatingElement'
 import ParticleExplosion from '@/components/ParticleExplosion'
 import MeshGradient from '@/components/MeshGradient'
 import InteractiveButton from '@/components/InteractiveButton'
+import ConfettiCanvas from '@/components/ConfettiCanvas'
+import CreditsRain from '@/components/CreditsRain'
+import Starfield from '@/components/Starfield'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useSound } from '@/hooks/useSound'
+import { useSwipeNavigation } from '@/hooks/useGesture'
 
 export default function WheelPage() {
   const router = useRouter()
@@ -25,9 +29,18 @@ export default function WheelPage() {
   const [result, setResult] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
   const [showParticles, setShowParticles] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
+  const [showCreditsRain, setShowCreditsRain] = useState(false)
+  const [creditsAmount, setCreditsAmount] = useState(0)
 
   const { impact, notification, vibrate } = useHaptics()
   const { playSpin, playWin, playJackpot, playSuccess, playTick } = useSound()
+
+  // Swipe navigation
+  useSwipeNavigation({
+    left: '/achievements',
+    right: '/dashboard'
+  })
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -64,6 +77,8 @@ export default function WheelPage() {
     setSpinning(true)
     setResult(null)
     setShowParticles(false)
+    setShowConfetti(false)
+    setShowCreditsRain(false)
 
     // Heavy haptic feedback on spin start
     impact('heavy')
@@ -91,20 +106,32 @@ export default function WheelPage() {
 
         // Different feedback based on reward type
         if (reward.type === 'JACKPOT') {
-          // JACKPOT - Epic celebration!
+          // JACKPOT - Epic celebration! 🎰🎉
           vibrate(500) // Long vibration
           playJackpot()
           notification('success')
           setShowParticles(true)
+          setShowConfetti(true)
+          setShowCreditsRain(true)
+          setCreditsAmount(reward.value)
           toast.success(`🎰 JACKPOT! ${reward.value} crédits!`, { duration: 5000 })
         } else if (reward.value >= 50) {
-          // Big win
+          // Big win - Confetti + Particles
           playWin()
           notification('success')
           setShowParticles(true)
+          setShowConfetti(true)
+          setShowCreditsRain(true)
+          setCreditsAmount(reward.value)
+          toast.success(`${reward.label} gagné !`, { duration: 5000 })
+        } else if (reward.value >= 20) {
+          // Medium win - Just confetti
+          playSuccess()
+          impact('medium')
+          setShowConfetti(true)
           toast.success(`${reward.label} gagné !`, { duration: 5000 })
         } else {
-          // Normal win
+          // Normal win - Minimal feedback
           playSuccess()
           impact('medium')
           toast.success(`${reward.label} gagné !`, { duration: 5000 })
@@ -139,8 +166,15 @@ export default function WheelPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 p-4 relative overflow-hidden">
+      {/* Starfield background */}
+      <Starfield starCount={150} speed={0.3} />
+
       {/* Animated mesh background */}
       <MeshGradient />
+
+      {/* Confetti and effects */}
+      <ConfettiCanvas trigger={showConfetti} duration={4000} particleCount={200} />
+      <CreditsRain trigger={showCreditsRain} amount={creditsAmount} duration={2.5} />
 
       <div className="max-w-4xl mx-auto relative z-10">
         {/* Header */}

@@ -65,10 +65,26 @@ export const useSound = () => {
   }, [playBeep])
 
   const playJackpot = useCallback(() => {
-    // Epic jackpot sound
-    const notes = [523, 587, 659, 698, 784, 880, 988, 1047]
-    notes.forEach((freq, i) => {
-      setTimeout(() => playBeep(freq, 100, 0.2), i * 60)
+    // Epic jackpot sound - Ascending scale with harmony
+    const melody = [
+      { freq: 523, duration: 80 },  // C
+      { freq: 587, duration: 80 },  // D
+      { freq: 659, duration: 80 },  // E
+      { freq: 698, duration: 80 },  // F
+      { freq: 784, duration: 100 }, // G
+      { freq: 880, duration: 100 }, // A
+      { freq: 988, duration: 120 }, // B
+      { freq: 1047, duration: 400 } // C high (sustained)
+    ]
+
+    melody.forEach((note, i) => {
+      setTimeout(() => {
+        playBeep(note.freq, note.duration, 0.25)
+        // Add harmony (third)
+        if (i >= 4) {
+          playBeep(note.freq * 1.25, note.duration, 0.15)
+        }
+      }, i * 70)
     })
   }, [playBeep])
 
