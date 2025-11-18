@@ -10,6 +10,8 @@ import { motion } from 'framer-motion'
 import GlassCard from '@/components/GlassCard'
 import ParallaxContainer from '@/components/ParallaxContainer'
 import FloatingElement from '@/components/FloatingElement'
+import MeshGradient from '@/components/MeshGradient'
+import SkeletonLoader from '@/components/SkeletonLoader'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -45,15 +47,29 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center">
-        <div className="text-white text-2xl">Chargement...</div>
+      <div className="min-h-screen bg-gradient-to-br from-primary-500 to-secondary-500 p-4 relative overflow-hidden">
+        <MeshGradient />
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid md:grid-cols-4 gap-6 mb-6 mt-20">
+            <SkeletonLoader variant="stat" />
+            <SkeletonLoader variant="stat" />
+            <SkeletonLoader variant="stat" />
+            <SkeletonLoader variant="stat" />
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <SkeletonLoader variant="card" />
+            <SkeletonLoader variant="card" />
+            <SkeletonLoader variant="card" />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-secondary-500 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-secondary-500 p-4 relative overflow-hidden">
+      <MeshGradient />
+      <div className="max-w-7xl mx-auto relative z-10">
         {/* Header */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 text-white">
           <div className="flex items-center justify-between">

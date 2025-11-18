@@ -10,6 +10,10 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import Card3D from '@/components/Card3D'
 import GlassCard from '@/components/GlassCard'
+import MeshGradient from '@/components/MeshGradient'
+import SkeletonLoader from '@/components/SkeletonLoader'
+import { useHaptics } from '@/hooks/useHaptics'
+import { useSound } from '@/hooks/useSound'
 
 export default function AchievementsPage() {
   const router = useRouter()
@@ -17,6 +21,9 @@ export default function AchievementsPage() {
   const [unlocked, setUnlocked] = useState<any[]>([])
   const [inProgress, setInProgress] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const { impact } = useHaptics()
+  const { playSuccess } = useSound()
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -41,15 +48,34 @@ export default function AchievementsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
-        <div className="text-white text-2xl">Chargement...</div>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-600 p-4 relative overflow-hidden">
+        <MeshGradient colors={[
+          'rgba(99, 102, 241, 0.4)',
+          'rgba(139, 92, 246, 0.4)',
+          'rgba(168, 85, 247, 0.4)',
+          'rgba(192, 132, 252, 0.4)',
+        ]} />
+        <div className="max-w-6xl mx-auto relative z-10 mt-20">
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <SkeletonLoader variant="card" />
+            <SkeletonLoader variant="card" />
+            <SkeletonLoader variant="card" />
+            <SkeletonLoader variant="card" />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-600 p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-600 p-4 relative overflow-hidden">
+      <MeshGradient colors={[
+        'rgba(99, 102, 241, 0.4)',
+        'rgba(139, 92, 246, 0.4)',
+        'rgba(168, 85, 247, 0.4)',
+        'rgba(192, 132, 252, 0.4)',
+      ]} />
+      <div className="max-w-6xl mx-auto relative z-10">
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -85,6 +111,12 @@ export default function AchievementsPage() {
               >
                 <Card3D
                   className="h-48"
+                  onFlip={(flipped) => {
+                    impact('light')
+                    if (flipped) {
+                      playSuccess()
+                    }
+                  }}
                   front={
                     <div className="h-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-yellow-300 p-6 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
                       {/* Shine effect */}

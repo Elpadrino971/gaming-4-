@@ -9,6 +9,7 @@ interface Card3DProps {
   className?: string
   flipOnHover?: boolean
   flipOnClick?: boolean
+  onFlip?: (isFlipped: boolean) => void
 }
 
 export default function Card3D({
@@ -16,13 +17,16 @@ export default function Card3D({
   back,
   className = '',
   flipOnHover = false,
-  flipOnClick = true
+  flipOnClick = true,
+  onFlip
 }: Card3DProps) {
   const [isFlipped, setIsFlipped] = useState(false)
 
   const handleClick = () => {
     if (flipOnClick) {
-      setIsFlipped(!isFlipped)
+      const newFlipState = !isFlipped
+      setIsFlipped(newFlipState)
+      onFlip?.(newFlipState)
     }
   }
 

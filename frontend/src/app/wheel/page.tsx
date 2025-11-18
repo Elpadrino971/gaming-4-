@@ -10,6 +10,11 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import GlassCard from '@/components/GlassCard'
 import FloatingElement from '@/components/FloatingElement'
+import ParticleExplosion from '@/components/ParticleExplosion'
+import MeshGradient from '@/components/MeshGradient'
+import InteractiveButton from '@/components/InteractiveButton'
+import { useHaptics } from '@/hooks/useHaptics'
+import { useSound } from '@/hooks/useSound'
 
 export default function WheelPage() {
   const router = useRouter()
@@ -19,6 +24,10 @@ export default function WheelPage() {
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
+  const [showParticles, setShowParticles] = useState(false)
+
+  const { impact, notification, vibrate } = useHaptics()
+  const { playSpin, playWin, playJackpot, playSuccess, playTick } = useSound()
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -48,11 +57,25 @@ export default function WheelPage() {
   const spin = async () => {
     if (spinsRemaining === 0) {
       toast.error('Plus de tours disponibles aujourd\'hui!')
+      impact('heavy')
       return
     }
 
     setSpinning(true)
     setResult(null)
+    setShowParticles(false)
+
+    // Heavy haptic feedback on spin start
+    impact('heavy')
+
+    // Play spinning sound
+    playSpin()
+
+    // Ticking haptic feedback during spin
+    const tickInterval = setInterval(() => {
+      impact('light')
+      playTick()
+    }, 200)
 
     try {
       const response = await wheelAPI.spin()
@@ -60,22 +83,39 @@ export default function WheelPage() {
 
       // Simulate spin animation
       setTimeout(() => {
+        clearInterval(tickInterval)
+
         setResult(reward)
         setSpinning(false)
         setSpinsRemaining((prev) => prev - 1)
 
-        // Show reward toast
-        const message =
-          reward.type === 'JACKPOT'
-            ? `🎰 JACKPOT! ${reward.value} crédits!`
-            : `${reward.label} gagné !`
-
-        toast.success(message, { duration: 5000 })
+        // Different feedback based on reward type
+        if (reward.type === 'JACKPOT') {
+          // JACKPOT - Epic celebration!
+          vibrate(500) // Long vibration
+          playJackpot()
+          notification('success')
+          setShowParticles(true)
+          toast.success(`🎰 JACKPOT! ${reward.value} crédits!`, { duration: 5000 })
+        } else if (reward.value >= 50) {
+          // Big win
+          playWin()
+          notification('success')
+          setShowParticles(true)
+          toast.success(`${reward.label} gagné !`, { duration: 5000 })
+        } else {
+          // Normal win
+          playSuccess()
+          impact('medium')
+          toast.success(`${reward.label} gagné !`, { duration: 5000 })
+        }
 
         loadData()
       }, 3000)
     } catch (error: any) {
+      clearInterval(tickInterval)
       toast.error(error.response?.data?.message || 'Erreur lors du spin')
+      notification('error')
       setSpinning(false)
     }
   }
@@ -98,8 +138,11 @@ export default function WheelPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 p-4 relative overflow-hidden">
+      {/* Animated mesh background */}
+      <MeshGradient />
+
+      <div className="max-w-4xl mx-auto relative z-10">
         {/* Header */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 text-white">
           <div className="flex items-center justify-between">
@@ -236,32 +279,36 @@ export default function WheelPage() {
             </motion.div>
           </div>
 
+          {/* Particle explosion effect */}
+          <ParticleExplosion
+            trigger={showParticles}
+            particleCount={100}
+            duration={3}
+            spread={400}
+            colors={['#fbbf24', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#3b82f6']}
+          />
+
           {/* Spin Button */}
           <div className="text-center mt-8">
-            <motion.button
+            <InteractiveButton
               onClick={spin}
               disabled={spinning || spinsRemaining === 0}
-              className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-12 py-4 rounded-xl font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
-              whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(168, 85, 247, 0.4)' }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              variant="primary"
+              size="xl"
+              hapticStyle="heavy"
+              playSound={false}
             >
-              {/* Button shimmer effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-
-              <span className="relative z-10">
-                {spinning ? (
-                  <span className="flex items-center gap-2 justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    Tournez, tournez...
-                  </span>
-                ) : spinsRemaining === 0 ? (
-                  'Plus de tours aujourd\'hui'
-                ) : (
-                  'TOURNER LA ROUE! 🎰'
-                )}
-              </span>
-            </motion.button>
+              {spinning ? (
+                <span className="flex items-center gap-2 justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  Tournez, tournez...
+                </span>
+              ) : spinsRemaining === 0 ? (
+                'Plus de tours aujourd\'hui'
+              ) : (
+                'TOURNER LA ROUE! 🎰'
+              )}
+            </InteractiveButton>
           </div>
 
           {/* Result Display */}
