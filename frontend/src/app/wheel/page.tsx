@@ -19,12 +19,13 @@ import Starfield from '@/components/Starfield'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useSound } from '@/hooks/useSound'
 import { useSwipeNavigation } from '@/hooks/useGesture'
+import { isDevelopment, DEV_USER } from '@/lib/dev'
 
 export default function WheelPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
-  const [spinsRemaining, setSpinsRemaining] = useState(0)
-  const [maxSpins, setMaxSpins] = useState(1)
+  const { user, isAuthenticated, setUser } = useAuthStore()
+  const [spinsRemaining, setSpinsRemaining] = useState(2)
+  const [maxSpins, setMaxSpins] = useState(2)
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
@@ -43,13 +44,23 @@ export default function WheelPage() {
   })
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // DEV MODE: Auto-login
+    if (isDevelopment() && !isAuthenticated) {
+      setUser(DEV_USER)
+      setSpinsRemaining(2)
+      setMaxSpins(2)
+      return
+    }
+
+    if (!isAuthenticated && !isDevelopment()) {
       router.push('/login')
       return
     }
 
-    loadData()
-  }, [isAuthenticated])
+    if (!isDevelopment()) {
+      loadData()
+    }
+  }, [isAuthenticated, setUser])
 
   const loadData = async () => {
     try {
@@ -93,8 +104,25 @@ export default function WheelPage() {
     }, 200)
 
     try {
-      const response = await wheelAPI.spin()
-      const reward = response.data.reward
+      let reward
+
+      // DEV MODE: Generate random reward
+      if (isDevelopment()) {
+        const rewards = [
+          { type: 'JACKPOT', value: 1000, label: 'JACKPOT 1000 CRÉDITS!' },
+          { type: 'CREDITS', value: 100, label: '100 Crédits' },
+          { type: 'CREDITS', value: 50, label: '50 Crédits' },
+          { type: 'CREDITS', value: 25, label: '25 Crédits' },
+          { type: 'CREDITS', value: 10, label: '10 Crédits' },
+          { type: 'FREE_GAME', value: 1, label: 'Partie Gratuite' },
+          { type: 'VIP_DAY', value: 1, label: '1 Jour VIP' },
+          { type: 'XP', value: 50, label: '50 XP' },
+        ]
+        reward = rewards[Math.floor(Math.random() * rewards.length)]
+      } else {
+        const response = await wheelAPI.spin()
+        reward = response.data.reward
+      }
 
       // Simulate spin animation
       setTimeout(() => {

@@ -12,22 +12,42 @@ import ParallaxContainer from '@/components/ParallaxContainer'
 import FloatingElement from '@/components/FloatingElement'
 import MeshGradient from '@/components/MeshGradient'
 import SkeletonLoader from '@/components/SkeletonLoader'
+import { isDevelopment, DEV_USER } from '@/lib/dev'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated, setUser } = useAuthStore()
   const [stats, setStats] = useState<any>(null)
   const [creditStats, setCreditStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // DEV MODE: Auto-login with mock data
+    if (isDevelopment()) {
+      if (!isAuthenticated) {
+        setUser(DEV_USER)
+      }
+      setStats({
+        totalGamesPlayed: 42,
+        totalWins: 18,
+        winRate: 42.9
+      })
+      setCreditStats({
+        totalEarned: 5420,
+        totalSpent: 3200,
+        transactionCount: 87
+      })
+      setLoading(false)
+      return
+    }
+
     if (!isAuthenticated) {
       router.push('/login')
       return
     }
 
     loadData()
-  }, [isAuthenticated])
+  }, [isAuthenticated, setUser])
 
   const loadData = async () => {
     try {
