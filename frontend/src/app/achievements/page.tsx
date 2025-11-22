@@ -14,25 +14,79 @@ import MeshGradient from '@/components/MeshGradient'
 import SkeletonLoader from '@/components/SkeletonLoader'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useSound } from '@/hooks/useSound'
+import { DEV_USER } from '@/lib/dev'
 
 export default function AchievementsPage() {
   const router = useRouter()
-  const { isAuthenticated } = useAuthStore()
-  const [unlocked, setUnlocked] = useState<any[]>([])
-  const [inProgress, setInProgress] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { user, setUser } = useAuthStore()
+  const [unlocked, setUnlocked] = useState<any[]>([
+    {
+      id: '1',
+      achievement: {
+        icon: '🏆',
+        name: 'First Blood',
+        description: 'Remporter ta première partie',
+        creditsReward: 100,
+        xpReward: 50
+      },
+      unlockedAt: new Date().toISOString()
+    },
+    {
+      id: '2',
+      achievement: {
+        icon: '🔥',
+        name: 'On Fire',
+        description: '5 victoires d\'affilée',
+        creditsReward: 500,
+        xpReward: 250
+      },
+      unlockedAt: new Date().toISOString()
+    },
+    {
+      id: '3',
+      achievement: {
+        icon: '💎',
+        name: 'High Roller',
+        description: 'Gagner 10 000 crédits',
+        creditsReward: 1000,
+        xpReward: 500
+      },
+      unlockedAt: new Date().toISOString()
+    }
+  ])
+  const [inProgress, setInProgress] = useState<any[]>([
+    {
+      id: '4',
+      achievement: {
+        icon: '⭐',
+        name: 'Champion',
+        description: 'Remporter 100 parties',
+      },
+      progress: 42,
+      target: 100
+    },
+    {
+      id: '5',
+      achievement: {
+        icon: '👑',
+        name: 'King of Bingo',
+        description: 'Atteindre le niveau VIP',
+      },
+      progress: 75,
+      target: 100
+    }
+  ])
+  const [loading, setLoading] = useState(false)
 
   const { impact } = useHaptics()
   const { playSuccess } = useSound()
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login')
-      return
+    // AUTO-LOGIN - No auth required!
+    if (!user) {
+      setUser(DEV_USER)
     }
-
-    loadAchievements()
-  }, [isAuthenticated])
+  }, [user, setUser])
 
   const loadAchievements = async () => {
     try {

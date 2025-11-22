@@ -23,9 +23,9 @@ import { isDevelopment, DEV_USER } from '@/lib/dev'
 
 export default function WheelPage() {
   const router = useRouter()
-  const { user, isAuthenticated, setUser } = useAuthStore()
-  const [spinsRemaining, setSpinsRemaining] = useState(2)
-  const [maxSpins, setMaxSpins] = useState(2)
+  const { user, setUser } = useAuthStore()
+  const [spinsRemaining, setSpinsRemaining] = useState(10)
+  const [maxSpins, setMaxSpins] = useState(10)
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
@@ -44,23 +44,11 @@ export default function WheelPage() {
   })
 
   useEffect(() => {
-    // DEV MODE: Auto-login
-    if (isDevelopment() && !isAuthenticated) {
+    // AUTO-LOGIN - No auth required!
+    if (!user) {
       setUser(DEV_USER)
-      setSpinsRemaining(2)
-      setMaxSpins(2)
-      return
     }
-
-    if (!isAuthenticated && !isDevelopment()) {
-      router.push('/login')
-      return
-    }
-
-    if (!isDevelopment()) {
-      loadData()
-    }
-  }, [isAuthenticated, setUser])
+  }, [user, setUser])
 
   const loadData = async () => {
     try {
@@ -104,25 +92,18 @@ export default function WheelPage() {
     }, 200)
 
     try {
-      let reward
-
-      // DEV MODE: Generate random reward
-      if (isDevelopment()) {
-        const rewards = [
-          { type: 'JACKPOT', value: 1000, label: 'JACKPOT 1000 CRÉDITS!' },
-          { type: 'CREDITS', value: 100, label: '100 Crédits' },
-          { type: 'CREDITS', value: 50, label: '50 Crédits' },
-          { type: 'CREDITS', value: 25, label: '25 Crédits' },
-          { type: 'CREDITS', value: 10, label: '10 Crédits' },
-          { type: 'FREE_GAME', value: 1, label: 'Partie Gratuite' },
-          { type: 'VIP_DAY', value: 1, label: '1 Jour VIP' },
-          { type: 'XP', value: 50, label: '50 XP' },
-        ]
-        reward = rewards[Math.floor(Math.random() * rewards.length)]
-      } else {
-        const response = await wheelAPI.spin()
-        reward = response.data.reward
-      }
+      // Generate random reward (no API needed!)
+      const rewards = [
+        { type: 'JACKPOT', value: 1000, label: 'JACKPOT 1000 CRÉDITS!' },
+        { type: 'CREDITS', value: 100, label: '100 Crédits' },
+        { type: 'CREDITS', value: 50, label: '50 Crédits' },
+        { type: 'CREDITS', value: 25, label: '25 Crédits' },
+        { type: 'CREDITS', value: 10, label: '10 Crédits' },
+        { type: 'FREE_GAME', value: 1, label: 'Partie Gratuite' },
+        { type: 'VIP_DAY', value: 1, label: '1 Jour VIP' },
+        { type: 'XP', value: 50, label: '50 XP' },
+      ]
+      const reward = rewards[Math.floor(Math.random() * rewards.length)]
 
       // Simulate spin animation
       setTimeout(() => {

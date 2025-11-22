@@ -16,38 +16,25 @@ import { isDevelopment, DEV_USER } from '@/lib/dev'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isAuthenticated, setUser } = useAuthStore()
-  const [stats, setStats] = useState<any>(null)
-  const [creditStats, setCreditStats] = useState<any>(null)
+  const { user, setUser } = useAuthStore()
+  const [stats, setStats] = useState<any>({
+    totalGamesPlayed: 42,
+    totalWins: 18,
+    winRate: 42.9
+  })
+  const [creditStats, setCreditStats] = useState<any>({
+    totalEarned: 5420,
+    totalSpent: 3200,
+    transactionCount: 87
+  })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // DEV MODE: Auto-login with mock data
-    if (isDevelopment()) {
-      if (!isAuthenticated) {
-        setUser(DEV_USER)
-      }
-      setStats({
-        totalGamesPlayed: 42,
-        totalWins: 18,
-        winRate: 42.9
-      })
-      setCreditStats({
-        totalEarned: 5420,
-        totalSpent: 3200,
-        transactionCount: 87
-      })
-      setLoading(false)
-      return
+    // AUTO-LOGIN - No auth required!
+    if (!user) {
+      setUser(DEV_USER)
     }
-
-    if (!isAuthenticated) {
-      router.push('/login')
-      return
-    }
-
-    loadData()
-  }, [isAuthenticated, setUser])
+  }, [user, setUser])
 
   const loadData = async () => {
     try {
