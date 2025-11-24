@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
+import { PrizesService } from '../prizes/prizes.service';
 import { createHash, randomBytes } from 'crypto';
 import { GameType, Prisma } from '@prisma/client';
 
@@ -58,6 +59,7 @@ export class GamesService {
   constructor(
     private prisma: PrismaService,
     private creditsService: CreditsService,
+    private prizesService: PrizesService,
   ) {}
 
   /**
@@ -485,6 +487,22 @@ export class GamesService {
 
     // Track daily stats (for financial dashboard)
     await this.trackDailyStats(game);
+
+    // 🎁 AUTOMATIC PRIZE ATTRIBUTION!
+    // Attempt to create physical prize order for winner
+    try {
+      const prizeResult = await this.prizesService.createPrizeOrderForWinner(
+        winnerId,
+        basePrize,
+        gameId,
+      );
+
+      // Log prize attribution result
+      console.log(`[PRIZE] Game ${gameId} - Winner ${winnerId}:`, prizeResult.type);
+    } catch (error) {
+      console.error(`[PRIZE] Error creating prize for winner ${winnerId}:`, error);
+      // Don't fail the game completion if prize attribution fails
+    }
 
     return this.getGameById(gameId);
   }

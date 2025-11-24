@@ -18,6 +18,9 @@ import { TournamentsModule } from './tournaments/tournaments.module';
 import { BattlePassModule } from './battle-pass/battle-pass.module';
 import { CosmeticsModule } from './cosmetics/cosmetics.module';
 import { ChatModule } from './chat/chat.module';
+import { AddressesModule } from './addresses/addresses.module';
+import { ProductsModule } from './products/products.module';
+import { PrizesModule } from './prizes/prizes.module';
 
 @Module({
   imports: [
@@ -44,10 +47,13 @@ import { ChatModule } from './chat/chat.module';
     GamesModule,
     CreditsModule,
     ShopModule,
+    ProductsModule,
+    PrizesModule,
     PaymentsModule,
     AdminModule,
     MissionsModule,
     VipModule,
+    AddressesModule,
 
     // New gamification features
     ReferralsModule,
