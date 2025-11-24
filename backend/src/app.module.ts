@@ -23,6 +23,7 @@ import { ProductsModule } from './products/products.module';
 import { PrizesModule } from './prizes/prizes.module';
 import { StripeModule } from './stripe/stripe.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ShippingModule } from './shipping/shipping.module';
     PrizesModule,
     StripeModule,
     ShippingModule,
+    EmailModule,
     PaymentsModule,
     AdminModule,
     MissionsModule,

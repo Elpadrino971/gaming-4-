@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "build": "nest build",
+    "start:prod": "node dist/main",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "prisma db seed"
+  }
+}
