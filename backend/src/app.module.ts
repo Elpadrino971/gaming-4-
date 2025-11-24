@@ -21,6 +21,8 @@ import { ChatModule } from './chat/chat.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { ProductsModule } from './products/products.module';
 import { PrizesModule } from './prizes/prizes.module';
+import { StripeModule } from './stripe/stripe.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { PrizesModule } from './prizes/prizes.module';
     ShopModule,
     ProductsModule,
     PrizesModule,
+    StripeModule,
+    ShippingModule,
     PaymentsModule,
     AdminModule,
     MissionsModule,
