@@ -20,6 +20,7 @@ export default function RegisterPage() {
     firstName: '',
     lastName: '',
     referralCode: '',
+    betaCode: '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,6 +150,22 @@ export default function RegisterPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Bonus de 100 crédits !"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Code Beta 🎮
+            </label>
+            <input
+              type="text"
+              value={formData.betaCode}
+              onChange={(e) => setFormData({ ...formData, betaCode: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="BINGO-XXXX"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              🔒 BingoShop est en beta fermée. Code requis pour s'inscrire.
+            </p>
           </div>
 
           <button

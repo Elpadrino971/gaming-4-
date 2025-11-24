@@ -24,6 +24,7 @@ import { PrizesModule } from './prizes/prizes.module';
 import { StripeModule } from './stripe/stripe.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { EmailModule } from './email/email.module';
+import { BetaModule } from './beta/beta.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { EmailModule } from './email/email.module';
     BattlePassModule,
     CosmeticsModule,
     ChatModule,
+    BetaModule,
   ],
 })
 export class AppModule {}

@@ -1079,3 +1079,39 @@ model PushSubscription {
   @@index([userId])
   @@map("push_subscriptions")
 }
+
+// ============================================
+// BETA ACCESS CODES
+// ============================================
+
+enum BetaCodeStatus {
+  AVAILABLE
+  USED
+  EXPIRED
+}
+
+model BetaCode {
+  id              String         @id @default(cuid())
+
+  code            String         @unique // 6-8 character code (e.g., BETA2024)
+  status          BetaCodeStatus @default(AVAILABLE)
+
+  // Usage tracking
+  usedBy          String?        // User ID who used this code
+  usedAt          DateTime?
+
+  // Expiration
+  expiresAt       DateTime?
+
+  // Creation tracking
+  createdBy       String         // Admin ID who created this code
+  createdAt       DateTime       @default(now())
+
+  // Metadata
+  notes           String?        // Optional notes (e.g., "Influencer codes", "Launch batch")
+
+  @@index([code])
+  @@index([status])
+  @@index([createdBy])
+  @@map("beta_codes")
+}

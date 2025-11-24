@@ -266,7 +266,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6 mb-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <Link
             href="/admin/users"
             className="bg-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition"
@@ -303,6 +303,19 @@ export default function AdminDashboardPage() {
             </h3>
             <p className="text-gray-600">
               Ajouter et modifier des produits
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/beta"
+            className="bg-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition"
+          >
+            <div className="text-5xl mb-3">🔐</div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              Codes Beta
+            </h3>
+            <p className="text-gray-600">
+              Générer et gérer les codes d'accès
             </p>
           </Link>
         </div>

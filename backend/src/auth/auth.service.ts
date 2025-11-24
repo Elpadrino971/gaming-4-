@@ -8,15 +8,34 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
+import { BetaService } from '../beta/beta.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private betaService: BetaService,
   ) {}
 
   async register(dto: RegisterDto) {
+    // Validate beta code if beta mode is enabled
+    if (this.betaService.isBetaModeEnabled()) {
+      if (!dto.betaCode) {
+        throw new BadRequestException(
+          'Beta code required. BingoShop is currently in closed beta.',
+        );
+      }
+
+      const isBetaCodeValid = await this.betaService.checkBetaCode(
+        dto.betaCode,
+      );
+
+      if (!isBetaCodeValid) {
+        throw new BadRequestException('Invalid or expired beta code');
+      }
+    }
+
     // Check if user already exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
@@ -56,6 +75,11 @@ export class AuthService {
         createdAt: true,
       },
     });
+
+    // Mark beta code as used (if provided and beta mode is enabled)
+    if (dto.betaCode && this.betaService.isBetaModeEnabled()) {
+      await this.betaService.validateAndUseBetaCode(dto.betaCode, user.id);
+    }
 
     // If referred, give bonus to both users
     if (dto.referralCode) {

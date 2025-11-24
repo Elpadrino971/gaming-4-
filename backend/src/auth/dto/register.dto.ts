@@ -48,4 +48,9 @@ export class RegisterDto {
   @IsString()
   @IsOptional()
   referralCode?: string;
+
+  @ApiProperty({ example: 'BINGO-AB12', required: false })
+  @IsString()
+  @IsOptional()
+  betaCode?: string;
 }
