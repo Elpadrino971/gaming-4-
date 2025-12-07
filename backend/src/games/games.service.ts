@@ -5,181 +5,123 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
-import { PrizesService } from '../prizes/prizes.service';
-import { createHash, randomBytes } from 'crypto';
-import { GameType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
-interface GameConfig {
-  type: GameType;
-  entryFee: number;
-  rakePercent: number;
-  multipliers: number[];
+// ============================================
+// GAME CONFIGURATIONS
+// ============================================
+
+interface FlashGameConfig {
+  entryFeeCredits: number;
+  prizeCredits: number;
+  rake: number;
   minPlayers: number;
   maxPlayers: number;
+  autoStartInterval: number; // minutes
+}
+
+interface BigJackpotConfig {
+  ticketPrice: number; // EUR
+  prizeProductName: string;
+  prizeProductValue: number; // EUR valeur retail
+  prizeProductCost: number; // EUR coût Amazon
+  rake: number;
+  scheduledStart: Date;
+  scheduledDraw: Date;
 }
 
 @Injectable()
 export class GamesService {
-  // Configurations pour chaque type de jeu
-  private readonly gameConfigs: Record<string, GameConfig> = {
-    STANDARD: {
-      type: 'MINI_BINGO_STANDARD',
-      entryFee: 100, // 1€ in credits
-      rakePercent: 30,
-      multipliers: [1, 1, 1, 2, 2, 2, 5, 5, 10], // 60% x1, 30% x2, 20% x5, 10% x10
-      minPlayers: 3,
-      maxPlayers: 12,
-    },
-    PREMIUM: {
-      type: 'MINI_BINGO_PREMIUM',
-      entryFee: 500, // 5€ in credits
-      rakePercent: 25,
-      multipliers: [1, 1, 2, 2, 2, 5, 5, 10, 10], // More chances for high multipliers
-      minPlayers: 3,
-      maxPlayers: 12,
-    },
-    SPEED: {
-      type: 'MINI_BINGO_SPEED',
-      entryFee: 50, // 0.50€ in credits
-      rakePercent: 35,
-      multipliers: [1, 1, 1, 1, 2, 2], // 80% x1, 20% x2
-      minPlayers: 3,
-      maxPlayers: 8,
-    },
-    FREE: {
-      type: 'MINI_BINGO_FREE',
-      entryFee: 0,
-      rakePercent: 0,
-      multipliers: [1], // Always x1
-      minPlayers: 3,
-      maxPlayers: 12,
-    },
+  // Configuration FLASH (parties rapides)
+  private readonly FLASH_CONFIG: FlashGameConfig = {
+    entryFeeCredits: 100, // 1€ en crédits
+    prizeCredits: 700, // 70% du pot
+    rake: 30, // 30%
+    minPlayers: 3,
+    maxPlayers: 10,
+    autoStartInterval: 5, // Toutes les 5 minutes
   };
 
   constructor(
     private prisma: PrismaService,
     private creditsService: CreditsService,
-    private prizesService: PrizesService,
   ) {}
 
+  // ============================================
+  // FLASH GAMES (Parties Rapides)
+  // ============================================
+
   /**
-   * Create a new game with proper economic model
+   * Créer une partie FLASH automatique
    */
-  async createGame(gameType: string = 'STANDARD') {
-    const config = this.gameConfigs[gameType];
-    if (!config) {
-      throw new BadRequestException('Invalid game type');
-    }
-
-    // Generate provably fair seed
-    const seed = randomBytes(32).toString('hex');
-    const seedHash = createHash('sha256').update(seed).digest('hex');
-
-    // Select random multiplier based on weighted probabilities
-    const multiplier =
-      config.multipliers[
-        Math.floor(Math.random() * config.multipliers.length)
-      ];
-
+  async createFlashGame() {
     const game = await this.prisma.game.create({
       data: {
-        type: config.type,
+        type: 'FLASH',
         status: 'WAITING',
-        minPlayers: config.minPlayers,
-        maxPlayers: config.maxPlayers,
-        entryFee: new Prisma.Decimal(config.entryFee),
-        totalCollected: 0,
-        rake: new Prisma.Decimal(config.rakePercent),
-        rakeAmount: 0,
-        basePrizePool: 0,
-        finalPrizePool: 0,
-        seedHash,
-        seed, // In production, encrypt this
-        multiplier,
+        minPlayers: this.FLASH_CONFIG.minPlayers,
+        maxPlayers: this.FLASH_CONFIG.maxPlayers,
+        entryFeeCredits: new Prisma.Decimal(this.FLASH_CONFIG.entryFeeCredits),
+        prizeCredits: new Prisma.Decimal(this.FLASH_CONFIG.prizeCredits),
+        rake: new Prisma.Decimal(this.FLASH_CONFIG.rake),
         drawnNumbers: [],
+        scheduledStart: new Date(Date.now() + this.FLASH_CONFIG.autoStartInterval * 60 * 1000),
       },
     });
 
+    console.log(`[FLASH] Nouvelle partie créée: ${game.id}`);
     return game;
   }
 
   /**
-   * Join a game with proper rake calculation
+   * Rejoindre une partie FLASH
    */
-  async joinGame(gameId: string, userId: string) {
+  async joinFlashGame(gameId: string, userId: string) {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
       include: { participants: true },
     });
 
     if (!game) {
-      throw new NotFoundException('Game not found');
+      throw new NotFoundException('Partie introuvable');
+    }
+
+    if (game.type !== 'FLASH') {
+      throw new BadRequestException('Ce n\'est pas une partie FLASH');
     }
 
     if (game.status !== 'WAITING') {
-      throw new BadRequestException('Game already started');
+      throw new BadRequestException('La partie a déjà commencé');
     }
 
     if (game.participants.length >= game.maxPlayers) {
-      throw new BadRequestException('Game is full');
+      throw new BadRequestException('Partie complète');
     }
 
     const alreadyJoined = game.participants.some((p) => p.userId === userId);
     if (alreadyJoined) {
-      throw new BadRequestException('Already joined this game');
+      throw new BadRequestException('Vous avez déjà rejoint cette partie');
     }
 
-    const entryFee = Number(game.entryFee);
+    const entryFee = Number(game.entryFeeCredits);
 
-    // FREE games don't require payment
-    if (entryFee > 0) {
-      // Check if user has enough credits
-      const hasEnough = await this.creditsService.hasEnoughCredits(
-        userId,
-        entryFee,
-      );
-
-      if (!hasEnough) {
-        throw new BadRequestException('Insufficient credits');
-      }
-
-      // Check daily free game limit
-      if (game.type === 'MINI_BINGO_FREE') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const freeGamesToday = await this.prisma.gameParticipant.count({
-          where: {
-            userId,
-            game: {
-              type: 'MINI_BINGO_FREE',
-            },
-            joinedAt: {
-              gte: today,
-            },
-          },
-        });
-
-        if (freeGamesToday >= 1) {
-          throw new BadRequestException(
-            'You have already played your free game today',
-          );
-        }
-      }
-
-      // Deduct entry fee
-      await this.creditsService.deductCredits(
-        userId,
-        entryFee,
-        'GAME_ENTRY',
-        {
-          gameId,
-          description: `Entry fee for ${game.type} game`,
-        },
-      );
+    // Vérifier et débiter les crédits
+    const hasEnough = await this.creditsService.hasEnoughCredits(userId, entryFee);
+    if (!hasEnough) {
+      throw new BadRequestException('Crédits insuffisants');
     }
 
-    // Generate bingo grid
+    await this.creditsService.deductCredits(
+      userId,
+      entryFee,
+      'GAME_ENTRY',
+      {
+        gameId,
+        description: `Entrée partie FLASH`,
+      },
+    );
+
+    // Générer grille de bingo
     const grid = this.generateBingoGrid();
     const markedCells = new Array(25).fill(false);
 
@@ -196,114 +138,326 @@ export class GamesService {
             id: true,
             username: true,
             avatarUrl: true,
-            isVip: true,
           },
         },
       },
     });
 
-    // Update game economics
-    await this.updateGameEconomics(gameId);
+    // Si partie complète, démarrer automatiquement
+    const updatedGame = await this.getGameById(gameId);
+    if (updatedGame.participants.length >= game.maxPlayers) {
+      await this.startGame(gameId);
+    }
 
     return {
       participant,
-      game: await this.getGameById(gameId),
+      game: updatedGame,
     };
   }
 
+  // ============================================
+  // BIG JACKPOT (Concours Hebdo)
+  // ============================================
+
   /**
-   * Update game prize pool with proper rake calculation
+   * Créer un BIG JACKPOT (admin uniquement)
    */
-  private async updateGameEconomics(gameId: string) {
+  async createBigJackpot(config: BigJackpotConfig) {
+    const game = await this.prisma.game.create({
+      data: {
+        type: 'BIG_JACKPOT',
+        status: 'OPEN_FOR_TICKETS',
+        minPlayers: 3, // Minimum pour lancer
+        maxPlayers: null, // Illimité !
+        ticketPrice: new Prisma.Decimal(config.ticketPrice),
+        ticketsSold: 0,
+        prizeProductName: config.prizeProductName,
+        prizeProductValue: new Prisma.Decimal(config.prizeProductValue),
+        prizeProductCost: new Prisma.Decimal(config.prizeProductCost),
+        rake: new Prisma.Decimal(config.rake),
+        drawnNumbers: [],
+        scheduledStart: config.scheduledStart,
+        scheduledDraw: config.scheduledDraw,
+      },
+    });
+
+    console.log(`[BIG] Nouveau jackpot créé: ${game.id} - ${config.prizeProductName}`);
+    return game;
+  }
+
+  /**
+   * Acheter un ticket pour BIG JACKPOT
+   * Note: Le paiement Stripe est géré dans payments.service.ts
+   */
+  async buyBigJackpotTicket(gameId: string, userId: string) {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
       include: { participants: true },
     });
 
-    if (!game) return;
+    if (!game) {
+      throw new NotFoundException('Jackpot introuvable');
+    }
 
-    const entryFee = Number(game.entryFee);
-    const playerCount = game.participants.length;
-    const rakePercent = Number(game.rake);
+    if (game.type !== 'BIG_JACKPOT') {
+      throw new BadRequestException('Ce n\'est pas un BIG JACKPOT');
+    }
 
-    // Calculate economics
-    const totalCollected = entryFee * playerCount;
-    const rakeAmount = totalCollected * (rakePercent / 100);
-    const basePrizePool = totalCollected - rakeAmount;
-    const finalPrizePool = basePrizePool * game.multiplier;
+    if (game.status !== 'OPEN_FOR_TICKETS') {
+      throw new BadRequestException('La vente de tickets est fermée');
+    }
 
-    // Update game
+    // Générer numéro de ticket unique
+    const ticketNumber = game.ticketsSold + 1;
+
+    // Générer grille de bingo (pour le concours)
+    const grid = this.generateBingoGrid();
+    const markedCells = new Array(25).fill(false);
+
+    const participant = await this.prisma.gameParticipant.create({
+      data: {
+        gameId,
+        userId,
+        grid,
+        markedCells,
+        ticketNumber,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    // Incrémenter le compteur de tickets
     await this.prisma.game.update({
       where: { id: gameId },
       data: {
-        totalCollected: new Prisma.Decimal(totalCollected),
-        rakeAmount: new Prisma.Decimal(rakeAmount),
-        basePrizePool: new Prisma.Decimal(basePrizePool),
-        finalPrizePool: new Prisma.Decimal(finalPrizePool),
+        ticketsSold: { increment: 1 },
       },
     });
+
+    console.log(`[BIG] Ticket #${ticketNumber} vendu à ${userId} pour ${game.prizeProductName}`);
+
+    return {
+      participant,
+      ticketNumber,
+      game: await this.getGameById(gameId),
+    };
   }
 
-  async getGameById(gameId: string) {
+  /**
+   * Démarrer le tirage BIG JACKPOT
+   * (appelé automatiquement par le scheduler à scheduledDraw)
+   */
+  async startBigJackpotDraw(gameId: string) {
+    const game = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      include: { participants: true },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Jackpot introuvable');
+    }
+
+    if (game.participants.length < game.minPlayers) {
+      // Pas assez de participants, annuler et rembourser
+      await this.cancelBigJackpot(gameId);
+      return;
+    }
+
+    // Lancer la partie normale (tous jouent en même temps)
+    await this.startGame(gameId);
+
+    console.log(`[BIG] Tirage lancé: ${game.id} - ${game.ticketsSold} tickets vendus`);
+  }
+
+  // ============================================
+  // GAME LOGIC (Commun FLASH + BIG)
+  // ============================================
+
+  /**
+   * Démarrer une partie
+   */
+  async startGame(gameId: string) {
+    const game = await this.prisma.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Partie introuvable');
+    }
+
+    if (game.status !== 'WAITING' && game.status !== 'OPEN_FOR_TICKETS') {
+      throw new BadRequestException('La partie ne peut pas être démarrée');
+    }
+
+    await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        status: 'STARTING',
+        startedAt: new Date(),
+      },
+    });
+
+    // Dans un vrai système, ici on lance le timer et le tirage des numéros
+    // Pour l'instant, on simule avec IN_PROGRESS direct
+    setTimeout(async () => {
+      await this.prisma.game.update({
+        where: { id: gameId },
+        data: {
+          status: 'IN_PROGRESS',
+        },
+      });
+    }, 3000); // 3 secondes de countdown
+
+    console.log(`[GAME] Partie démarrée: ${gameId}`);
+  }
+
+  /**
+   * Terminer une partie et attribuer le gain
+   */
+  async endGame(gameId: string, winnerId: string) {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
       include: {
         participants: {
           include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                avatarUrl: true,
-                isVip: true,
-              },
-            },
+            user: true,
           },
         },
       },
     });
 
     if (!game) {
-      throw new NotFoundException('Game not found');
+      throw new NotFoundException('Partie introuvable');
     }
 
-    return game;
-  }
+    const winner = game.participants.find((p) => p.userId === winnerId);
+    if (!winner) {
+      throw new NotFoundException('Gagnant introuvable');
+    }
 
-  async getAvailableGames() {
-    return this.prisma.game.findMany({
-      where: {
-        status: 'WAITING',
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                avatarUrl: true,
-                isVip: true,
-              },
-            },
+    let winnerPrize: string;
+
+    if (game.type === 'FLASH') {
+      // FLASH: Attribuer des crédits
+      const prizeAmount = Number(game.prizeCredits);
+
+      await this.creditsService.addCredits(winnerId, prizeAmount, 'GAME_WIN', {
+        gameId,
+        description: `Victoire partie FLASH`,
+      });
+
+      winnerPrize = `${prizeAmount} crédits`;
+
+      // Mettre à jour le participant
+      await this.prisma.gameParticipant.update({
+        where: {
+          gameId_userId: {
+            gameId,
+            userId: winnerId,
           },
         },
+        data: {
+          isWinner: true,
+          prizeWon: winnerPrize,
+          finishedAt: new Date(),
+        },
+      });
+    } else if (game.type === 'BIG_JACKPOT') {
+      // BIG: Lot physique
+      winnerPrize = game.prizeProductName;
+
+      // Mettre à jour le participant
+      await this.prisma.gameParticipant.update({
+        where: {
+          gameId_userId: {
+            gameId,
+            userId: winnerId,
+          },
+        },
+        data: {
+          isWinner: true,
+          prizeWon: winnerPrize,
+          finishedAt: new Date(),
+        },
+      });
+
+      // TODO: Créer automatiquement une commande pour le lot physique
+      // via prizes.service.ts ou orders.service.ts
+    }
+
+    // Mettre à jour la partie
+    await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        status: 'COMPLETED',
+        winnerId,
+        winnerPrize,
+        completedAt: new Date(),
       },
-      orderBy: { createdAt: 'desc' },
     });
+
+    // Mettre à jour les stats utilisateur
+    await this.prisma.user.update({
+      where: { id: winnerId },
+      data: {
+        totalWins: { increment: 1 },
+        totalGamesPlayed: { increment: 1 },
+      },
+    });
+
+    // Autres participants
+    for (const participant of game.participants) {
+      if (participant.userId !== winnerId) {
+        await this.prisma.user.update({
+          where: { id: participant.userId },
+          data: {
+            totalGamesPlayed: { increment: 1 },
+          },
+        });
+      }
+    }
+
+    console.log(`[GAME] Partie terminée: ${gameId} - Gagnant: ${winner.user.username}`);
+
+    return this.getGameById(gameId);
   }
 
-  async getUserGames(userId: string) {
-    return this.prisma.gameParticipant.findMany({
-      where: { userId },
-      include: {
-        game: true,
-      },
-      orderBy: { joinedAt: 'desc' },
-      take: 50,
+  /**
+   * Annuler un BIG JACKPOT (pas assez de participants)
+   */
+  async cancelBigJackpot(gameId: string) {
+    const game = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      include: { participants: true },
     });
+
+    if (!game) {
+      throw new NotFoundException('Jackpot introuvable');
+    }
+
+    // TODO: Rembourser tous les participants via Stripe
+    // Pour l'instant, juste marquer comme annulé
+
+    await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        status: 'CANCELLED',
+      },
+    });
+
+    console.log(`[BIG] Jackpot annulé: ${gameId} - Pas assez de participants`);
   }
 
+  /**
+   * Vérifier si un joueur a fait BINGO
+   */
   async checkBingo(gameId: string, userId: string): Promise<boolean> {
     const participant = await this.prisma.gameParticipant.findFirst({
       where: { gameId, userId },
@@ -315,7 +469,7 @@ export class GamesService {
 
     const markedCells = participant.markedCells;
 
-    // Check rows
+    // Vérifier lignes
     for (let row = 0; row < 5; row++) {
       if (
         markedCells[row * 5] &&
@@ -328,7 +482,7 @@ export class GamesService {
       }
     }
 
-    // Check columns
+    // Vérifier colonnes
     for (let col = 0; col < 5; col++) {
       if (
         markedCells[col] &&
@@ -341,7 +495,7 @@ export class GamesService {
       }
     }
 
-    // Check diagonals
+    // Vérifier diagonales
     if (
       markedCells[0] &&
       markedCells[6] &&
@@ -365,6 +519,94 @@ export class GamesService {
     return false;
   }
 
+  // ============================================
+  // QUERIES
+  // ============================================
+
+  async getGameById(gameId: string) {
+    const game = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Partie introuvable');
+    }
+
+    return game;
+  }
+
+  async getAvailableFlashGames() {
+    return this.prisma.game.findMany({
+      where: {
+        type: 'FLASH',
+        status: 'WAITING',
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+  }
+
+  async getActiveBigJackpots() {
+    return this.prisma.game.findMany({
+      where: {
+        type: 'BIG_JACKPOT',
+        status: 'OPEN_FOR_TICKETS',
+      },
+      include: {
+        participants: {
+          select: {
+            ticketNumber: true,
+          },
+        },
+      },
+      orderBy: { scheduledDraw: 'asc' },
+    });
+  }
+
+  async getUserGames(userId: string) {
+    return this.prisma.gameParticipant.findMany({
+      where: { userId },
+      include: {
+        game: true,
+      },
+      orderBy: { joinedAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+
+  /**
+   * Générer une grille de bingo 5x5
+   */
   private generateBingoGrid(): number[][] {
     const grid: number[][] = [];
 
@@ -378,7 +620,7 @@ export class GamesService {
         numbers.push(i);
       }
 
-      // Shuffle
+      // Shuffle Fisher-Yates
       for (let i = numbers.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
@@ -388,158 +630,5 @@ export class GamesService {
     }
 
     return grid;
-  }
-
-  /**
-   * End game with VIP bonus calculation
-   */
-  async endGame(gameId: string, winnerId: string) {
-    const game = await this.prisma.game.findUnique({
-      where: { id: gameId },
-      include: {
-        participants: {
-          include: {
-            user: true,
-          },
-        },
-      },
-    });
-
-    if (!game) {
-      throw new NotFoundException('Game not found');
-    }
-
-    const winner = game.participants.find((p) => p.userId === winnerId);
-    if (!winner) {
-      throw new NotFoundException('Winner not found in participants');
-    }
-
-    let basePrize = Number(game.finalPrizePool);
-
-    // Apply VIP bonus (+20% on winnings)
-    let vipBonus = 0;
-    if (winner.user.isVip) {
-      vipBonus = basePrize * 0.2;
-      basePrize += vipBonus;
-    }
-
-    // Update game
-    await this.prisma.game.update({
-      where: { id: gameId },
-      data: {
-        status: 'COMPLETED',
-        winnerId,
-        winnerPrize: new Prisma.Decimal(basePrize),
-        completedAt: new Date(),
-      },
-    });
-
-    // Update participant
-    await this.prisma.gameParticipant.update({
-      where: {
-        gameId_userId: {
-          gameId,
-          userId: winnerId,
-        },
-      },
-      data: {
-        isWinner: true,
-        prizeWon: new Prisma.Decimal(basePrize),
-        finishedAt: new Date(),
-      },
-    });
-
-    // Award credits to winner
-    await this.creditsService.addCredits(winnerId, basePrize, 'GAME_WIN', {
-      gameId,
-      description: vipBonus > 0
-        ? `Won ${game.type} (VIP bonus +${vipBonus.toFixed(0)} credits)`
-        : `Won ${game.type}`,
-      metadata: {
-        baseWin: Number(game.finalPrizePool),
-        vipBonus,
-        totalWin: basePrize,
-      },
-    });
-
-    // Update user stats
-    await this.prisma.user.update({
-      where: { id: winnerId },
-      data: {
-        totalWins: { increment: 1 },
-        totalGamesPlayed: { increment: 1 },
-        xp: { increment: 100 },
-      },
-    });
-
-    // Update other participants' games played
-    for (const participant of game.participants) {
-      if (participant.userId !== winnerId) {
-        await this.prisma.user.update({
-          where: { id: participant.userId },
-          data: {
-            totalGamesPlayed: { increment: 1 },
-            xp: { increment: 10 },
-          },
-        });
-      }
-    }
-
-    // Track daily stats (for financial dashboard)
-    await this.trackDailyStats(game);
-
-    // 🎁 AUTOMATIC PRIZE ATTRIBUTION!
-    // Attempt to create physical prize order for winner
-    try {
-      const prizeResult = await this.prizesService.createPrizeOrderForWinner(
-        winnerId,
-        basePrize,
-        gameId,
-      );
-
-      // Log prize attribution result
-      console.log(`[PRIZE] Game ${gameId} - Winner ${winnerId}:`, prizeResult.type);
-    } catch (error) {
-      console.error(`[PRIZE] Error creating prize for winner ${winnerId}:`, error);
-      // Don't fail the game completion if prize attribution fails
-    }
-
-    return this.getGameById(gameId);
-  }
-
-  /**
-   * Track daily statistics for financial dashboard
-   */
-  private async trackDailyStats(game: any) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const stats = await this.prisma.dailyStats.findUnique({
-      where: { date: today },
-    });
-
-    const rakeCollected = Number(game.rakeAmount);
-
-    if (stats) {
-      await this.prisma.dailyStats.update({
-        where: { date: today },
-        data: {
-          gamesPlayed: { increment: 1 },
-          totalPlayers: { increment: game.participants.length },
-          rakeCollected: { increment: rakeCollected },
-          totalRevenue: { increment: rakeCollected },
-        },
-      });
-    } else {
-      await this.prisma.dailyStats.create({
-        data: {
-          date: today,
-          gamesPlayed: 1,
-          totalPlayers: game.participants.length,
-          rakeCollected,
-          totalRevenue: rakeCollected,
-        },
-      });
-    }
   }
 }
