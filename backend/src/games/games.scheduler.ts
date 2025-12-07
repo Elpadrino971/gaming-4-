@@ -12,10 +12,7 @@ export class GamesScheduler {
     private prisma: PrismaService,
   ) {}
 
-  /**
-   * FLASH: Créer automatiquement une partie toutes les 5 minutes
-   * Cron: */5 * * * * = Toutes les 5 minutes
-   */
+  // FLASH: Créer automatiquement une partie toutes les 5 minutes
   @Cron('*/5 * * * *')
   async createFlashGameEvery5Minutes() {
     try {
@@ -40,10 +37,7 @@ export class GamesScheduler {
     }
   }
 
-  /**
-   * BIG JACKPOT: Vérifier les tirages à lancer
-   * Cron: */1 * * * * = Toutes les 1 minute
-   */
+  // BIG JACKPOT: Vérifier les tirages à lancer toutes les minutes
   @Cron('*/1 * * * *')
   async checkBigJackpotDraws() {
     try {
@@ -69,10 +63,7 @@ export class GamesScheduler {
     }
   }
 
-  /**
-   * Nettoyer les anciennes parties (optionnel)
-   * Cron: 0 3 * * * = Tous les jours à 3h du matin
-   */
+  // Nettoyer les anciennes parties tous les jours à 3h du matin
   @Cron('0 3 * * *')
   async cleanupOldGames() {
     try {
@@ -94,10 +85,7 @@ export class GamesScheduler {
     }
   }
 
-  /**
-   * Statistiques quotidiennes (optionnel)
-   * Cron: 0 0 * * * = Tous les jours à minuit
-   */
+  // Statistiques quotidiennes tous les jours à minuit
   @Cron('0 0 * * *')
   async generateDailyStats() {
     try {
