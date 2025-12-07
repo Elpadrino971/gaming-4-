@@ -17,17 +17,17 @@ export class GamesController {
   constructor(private gamesService: GamesService) {}
 
   @Get('available')
-  @ApiOperation({ summary: 'Get available games' })
+  @ApiOperation({ summary: 'Get available FLASH games' })
   async getAvailableGames() {
-    return this.gamesService.getAvailableGames();
+    return this.gamesService.getAvailableFlashGames();
   }
 
-  @Post('create')
+  @Post('flash/create')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new game (STANDARD, PREMIUM, SPEED, FREE)' })
-  async createGame(@Body() body: { gameType?: string }) {
-    return this.gamesService.createGame(body.gameType || 'STANDARD');
+  @ApiOperation({ summary: 'Create a new FLASH game (MVP - auto games every 5min)' })
+  async createFlashGame() {
+    return this.gamesService.createFlashGame();
   }
 
   @Get(':id')

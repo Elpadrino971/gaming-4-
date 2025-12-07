@@ -62,7 +62,7 @@ export class BingoGateway
     @ConnectedSocket() client: Socket,
   ) {
     try {
-      const result = await this.gamesService.joinGame(data.gameId, data.userId);
+      const result = await this.gamesService.joinFlashGame(data.gameId, data.userId);
 
       // Join socket room
       client.join(`game:${data.gameId}`);

@@ -8,9 +8,9 @@ import { UsersModule } from './users/users.module';
 import { GamesModule } from './games/games.module';
 import { CreditsModule } from './credits/credits.module';
 import { AddressesModule } from './addresses/addresses.module';
-import { AdminModule } from './admin/admin.module';
 
 // DISABLED FOR MVP - These modules use old schema fields that were removed
+// import { AdminModule } from './admin/admin.module';
 // import { ShopModule } from './shop/shop.module';
 // import { PaymentsModule } from './payments/payments.module';
 // import { ProductsModule } from './products/products.module';
@@ -48,7 +48,6 @@ import { AdminModule } from './admin/admin.module';
     GamesModule,
     CreditsModule,
     AddressesModule,
-    AdminModule,
   ],
 })
 export class AppModule {}
