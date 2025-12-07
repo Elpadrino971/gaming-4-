@@ -20,7 +20,6 @@ export class UsersService {
         credits: true,
         totalGamesPlayed: true,
         totalWins: true,
-        referralCode: true,
         createdAt: true,
       },
     });
