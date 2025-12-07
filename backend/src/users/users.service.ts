@@ -17,9 +17,7 @@ export class UsersService {
         lastName: true,
         avatarUrl: true,
         role: true,
-        level: true,
         credits: true,
-        xp: true,
         totalGamesPlayed: true,
         totalWins: true,
         referralCode: true,
@@ -65,8 +63,6 @@ export class UsersService {
       where: { id: userId },
       select: {
         credits: true,
-        xp: true,
-        level: true,
         totalGamesPlayed: true,
         totalWins: true,
       },
@@ -83,16 +79,18 @@ export class UsersService {
     };
   }
 
+  // DISABLED FOR MVP - referredBy field removed from schema
   async getReferrals(userId: string) {
-    const referrals = await this.prisma.user.findMany({
-      where: { referredBy: userId },
-      select: {
-        id: true,
-        username: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // const referrals = await this.prisma.user.findMany({
+    //   where: { referredBy: userId },
+    //   select: {
+    //     id: true,
+    //     username: true,
+    //     createdAt: true,
+    //   },
+    //   orderBy: { createdAt: 'desc' },
+    // });
+    const referrals = [];
 
     return {
       count: referrals.length,
