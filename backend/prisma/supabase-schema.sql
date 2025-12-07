@@ -132,7 +132,7 @@ CREATE TABLE "game_participants" (
 
     -- Bingo grid (stored as JSONB for flexibility)
     "grid" JSONB NOT NULL,
-    "markedCells" BOOLEAN[] NOT NULL,
+    "markedCells" JSONB NOT NULL,
 
     -- Results
     "isWinner" BOOLEAN NOT NULL DEFAULT false,
