@@ -1,4 +1,9 @@
-// Prisma Schema for BingoShop Platform
+// ============================================
+// BINGOSHOP - MVP SIMPLIFIÉ (FLASH + BIG JACKPOT)
+// ============================================
+// Version: 2.0 - Ultra-simplifié
+// Tables: 9 (au lieu de 27)
+// ============================================
 
 generator client {
   provider = "prisma-client-js"
@@ -10,20 +15,12 @@ datasource db {
 }
 
 // ============================================
-// USER MANAGEMENT
+// ENUMS
 // ============================================
 
 enum UserRole {
   USER
   ADMIN
-  MODERATOR
-}
-
-enum UserLevel {
-  BRONZE
-  SILVER
-  GOLD
-  DIAMOND
 }
 
 enum UserStatus {
@@ -32,13 +29,56 @@ enum UserStatus {
   BANNED
 }
 
+enum GameType {
+  FLASH           // Parties rapides toutes les 5min, 10 joueurs max, crédits
+  BIG_JACKPOT     // Concours hebdo, illimité joueurs, lot physique
+}
+
+enum GameStatus {
+  WAITING         // En attente de joueurs
+  OPEN_FOR_TICKETS // BIG: Vente de tickets ouverte
+  STARTING        // Compte à rebours
+  IN_PROGRESS     // Partie en cours
+  COMPLETED       // Terminée
+  CANCELLED       // Annulée
+}
+
+enum TransactionType {
+  CREDIT_PURCHASE     // Achat de crédits via Stripe
+  GAME_ENTRY          // Entrée dans une partie FLASH
+  GAME_WIN            // Gain d'une partie FLASH
+  SHOP_PURCHASE       // Achat boutique
+  TICKET_PURCHASE     // Achat ticket BIG JACKPOT
+  ADMIN_ADJUSTMENT    // Ajustement admin
+  REFUND              // Remboursement
+}
+
+enum OrderStatus {
+  PENDING         // Créée
+  PROCESSING      // En préparation
+  SHIPPED         // Expédiée
+  DELIVERED       // Livrée
+  CANCELLED       // Annulée
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+// ============================================
+// USER MANAGEMENT (Simplifié)
+// ============================================
+
 model User {
   id            String      @id @default(cuid())
   email         String      @unique
   username      String      @unique
   password      String      // bcrypt hashed
 
-  // Profile
+  // Profile basique
   firstName     String?
   lastName      String?
   avatarUrl     String?
@@ -47,35 +87,18 @@ model User {
   // Status & Role
   role          UserRole    @default(USER)
   status        UserStatus  @default(ACTIVE)
-  level         UserLevel   @default(BRONZE)
 
-  // Gamification
+  // Économie
   credits       Decimal     @default(0) @db.Decimal(10, 2)
-  xp            Int         @default(0)
+
+  // Stats simples
   totalGamesPlayed Int      @default(0)
   totalWins     Int         @default(0)
-
-  // VIP Subscription
-  isVip         Boolean     @default(false)
-  vipSince      DateTime?
-  vipExpiresAt  DateTime?
-
-  // Streak System
-  loginStreak   Int         @default(0)
-  lastLoginDate DateTime?
-  maxStreak     Int         @default(0)
-
-  // Referral
-  referralCode  String      @unique @default(cuid())
-  referredBy    String?
-  referrer      User?       @relation("Referrals", fields: [referredBy], references: [id])
-  referrals     User[]      @relation("Referrals")
 
   // Timestamps
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   lastLoginAt   DateTime?
-  emailVerifiedAt DateTime?
 
   // Relations
   gameParticipations GameParticipant[]
@@ -83,13 +106,9 @@ model User {
   orders        Order[]
   payments      Payment[]
   addresses     Address[]
-  notifications Notification[]
-  subscriptions Subscription[]
-  missions      UserMission[]
 
   @@index([email])
   @@index([username])
-  @@index([referralCode])
   @@map("users")
 }
 
@@ -118,59 +137,41 @@ model Address {
 }
 
 // ============================================
-// GAME MANAGEMENT
+// GAMES (FLASH + BIG JACKPOT)
 // ============================================
-
-enum GameType {
-  MINI_BINGO_STANDARD   // Standard 1€ entry, rake 30%
-  MINI_BINGO_PREMIUM    // Premium 5€ entry, rake 25%
-  MINI_BINGO_SPEED      // Speed 0.50€ entry, rake 35%
-  MINI_BINGO_FREE       // Free daily game
-  PROGRESSIVE_BINGO     // Games with progressive jackpots (Phase 2)
-}
-
-enum GameStatus {
-  WAITING     // Waiting for players
-  STARTING    // Countdown before start
-  IN_PROGRESS // Game is running
-  COMPLETED   // Game finished
-  CANCELLED   // Game cancelled
-}
 
 model Game {
   id              String          @id @default(cuid())
   type            GameType
   status          GameStatus      @default(WAITING)
 
-  // Game settings
+  // Configuration commune
   minPlayers      Int             @default(3)
-  maxPlayers      Int             @default(12)
-  entryFee        Decimal         @db.Decimal(10, 2) // in EUR or Credits
+  maxPlayers      Int?            // NULL = illimité (pour BIG)
 
-  // Economic Model
-  totalCollected  Decimal         @db.Decimal(10, 2) // Total from all players
-  rake            Decimal         @db.Decimal(10, 2) // Platform profit (%)
-  rakeAmount      Decimal         @db.Decimal(10, 2) // Actual € amount
-  basePrizePool   Decimal         @db.Decimal(10, 2) // Before multiplier
-  finalPrizePool  Decimal         @db.Decimal(10, 2) // After multiplier
+  // FLASH: Crédits
+  entryFeeCredits Decimal?        @db.Decimal(10, 2)  // 100 crédits
+  prizeCredits    Decimal?        @db.Decimal(10, 2)  // 700 crédits
+  rake            Decimal         @default(30) @db.Decimal(5, 2) // 30%
+
+  // BIG JACKPOT: Ticket + Lot physique
+  ticketPrice     Decimal?        @db.Decimal(10, 2)  // 5€
+  ticketsSold     Int             @default(0)
+  prizeProductName String?        // "iPhone 15 Pro"
+  prizeProductValue Decimal?      @db.Decimal(10, 2)  // 1199€
+  prizeProductCost  Decimal?      @db.Decimal(10, 2)  // 900€ (coût Amazon)
 
   // Game data
-  drawnNumbers    Int[]           // Numbers already drawn
+  drawnNumbers    Int[]           // Numéros tirés
   gridSize        Int             @default(5) // 5x5 grid
-
-  // Provably Fair
-  seedHash        String          // Hash of the seed before game
-  seed            String?         // Revealed after game
-
-  // Multiplier (random x1, x2, x5, x10)
-  multiplier      Int             @default(1)
 
   // Winner
   winnerId        String?
-  winnerPrize     Decimal?        @db.Decimal(10, 2)
+  winnerPrize     String?         // "700 crédits" ou "iPhone 15 Pro"
 
   // Timestamps
-  scheduledAt     DateTime?
+  scheduledStart  DateTime?       // BIG: Ouverture vente tickets
+  scheduledDraw   DateTime?       // BIG: Tirage
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime        @default(now())
@@ -181,6 +182,7 @@ model Game {
 
   @@index([status])
   @@index([type])
+  @@index([scheduledDraw])
   @@index([createdAt])
   @@map("games")
 }
@@ -192,14 +194,17 @@ model GameParticipant {
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Bingo grid for this participant
-  grid            Int[][]   // 5x5 grid of numbers
-  markedCells     Boolean[] // Which cells are marked
+  // Bingo grid
+  grid            Int[][]   // 5x5 grid
+  markedCells     Boolean[] // Cellules marquées
 
   // Results
   isWinner        Boolean   @default(false)
-  prizeWon        Decimal?  @db.Decimal(10, 2)
+  prizeWon        String?   // "700 crédits" ou "iPhone 15 Pro"
   finishedAt      DateTime?
+
+  // BIG JACKPOT: Ticket number
+  ticketNumber    Int?      // Numéro de ticket unique pour BIG
 
   joinedAt        DateTime  @default(now())
 
@@ -213,36 +218,13 @@ model GameParticipant {
 // CREDITS SYSTEM
 // ============================================
 
-enum TransactionType {
-  GAME_WIN         // Won from a game
-  GAME_ENTRY       // Paid to enter a game
-  PURCHASE         // Bought credits
-  SHOP_PURCHASE    // Spent in shop
-  REFERRAL_BONUS   // Bonus from referral
-  MISSION_REWARD   // Completed mission
-  STREAK_BONUS     // Daily login streak
-  VIP_BONUS        // VIP bonus credits
-  DAILY_WHEEL      // Won from daily wheel (Phase 2)
-  ADMIN_ADJUSTMENT // Admin manual adjustment
-  REFUND           // Refund
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
 model CreditTransaction {
   id              String            @id @default(cuid())
   userId          String
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type            TransactionType
-  status          TransactionStatus @default(COMPLETED)
-
-  amount          Decimal           @db.Decimal(10, 2) // Positive for credit, negative for debit
+  amount          Decimal           @db.Decimal(10, 2) // + ou -
   balanceBefore   Decimal           @db.Decimal(10, 2)
   balanceAfter    Decimal           @db.Decimal(10, 2)
 
@@ -263,14 +245,8 @@ model CreditTransaction {
 }
 
 // ============================================
-// SHOP & PRODUCTS
+// SHOP (Boutique Amazon)
 // ============================================
-
-enum ProductStatus {
-  ACTIVE
-  INACTIVE
-  OUT_OF_STOCK
-}
 
 model Product {
   id              String        @id @default(cuid())
@@ -278,28 +254,26 @@ model Product {
   name            String
   description     String        @db.Text
   imageUrl        String?
-  images          String[]      // Multiple images
+  images          String[]
 
-  // Pricing (in credits)
+  // Prix en crédits
   priceInCredits  Decimal       @db.Decimal(10, 2)
-  priceInEur      Decimal?      @db.Decimal(10, 2) // Optional EUR price
 
-  // Stock
-  stock           Int           @default(0)
-  unlimited       Boolean       @default(false)
+  // Stock (optionnel, pour gérer limite)
+  stock           Int           @default(999)
+  unlimited       Boolean       @default(true)
 
-  status          ProductStatus @default(ACTIVE)
-
-  // Amazon integration
-  amazonASIN      String?       // Amazon product ID
+  // Amazon
   amazonUrl       String?
+  amazonASIN      String?
 
-  // Categories & tags
+  // Catégorie
   category        String?
   tags            String[]
 
   // Stats
   totalSold       Int           @default(0)
+  isActive        Boolean       @default(true)
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -307,24 +281,14 @@ model Product {
   // Relations
   orderItems      OrderItem[]
 
-  @@index([status])
   @@index([category])
+  @@index([isActive])
   @@map("products")
 }
 
 // ============================================
-// ORDERS & DELIVERY
+// ORDERS (Commandes)
 // ============================================
-
-enum OrderStatus {
-  PENDING         // Order created
-  PAID            // Payment completed
-  PROCESSING      // Being prepared
-  SHIPPED         // Shipped
-  DELIVERED       // Delivered
-  CANCELLED       // Cancelled
-  REFUNDED        // Refunded
-}
 
 model Order {
   id              String        @id @default(cuid())
@@ -335,29 +299,28 @@ model Order {
 
   status          OrderStatus   @default(PENDING)
 
-  // Pricing
+  // Prix total en crédits
   totalCredits    Decimal       @db.Decimal(10, 2)
-  totalEur        Decimal       @default(0) @db.Decimal(10, 2)
 
-  // Delivery address
+  // Adresse de livraison
   addressId       String
   address         Address       @relation(fields: [addressId], references: [id])
 
   // Tracking
   trackingNumber  String?
-  trackingUrl     String?
-  carrier         String?
+  carrier         String?       @default("Amazon")
+
+  // Notes admin
+  adminNotes      String?       @db.Text
 
   // Timestamps
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  paidAt          DateTime?
   shippedAt       DateTime?
   deliveredAt     DateTime?
 
   // Relations
   items           OrderItem[]
-  payment         Payment?
 
   @@index([userId])
   @@index([status])
@@ -375,7 +338,6 @@ model OrderItem {
 
   quantity        Int      @default(1)
   priceInCredits  Decimal  @db.Decimal(10, 2)
-  priceInEur      Decimal  @default(0) @db.Decimal(10, 2)
 
   @@index([orderId])
   @@index([productId])
@@ -383,51 +345,34 @@ model OrderItem {
 }
 
 // ============================================
-// PAYMENT (STRIPE)
+// PAYMENTS (Stripe)
 // ============================================
 
-enum PaymentStatus {
-  PENDING
-  PROCESSING
-  SUCCEEDED
-  FAILED
-  CANCELLED
-  REFUNDED
-}
-
-enum PaymentType {
-  ORDER           // Shop order
-  CREDIT_PURCHASE // Buy credits
-  GAME_ENTRY      // Buy game ticket
-  VIP_SUBSCRIPTION // VIP subscription
-}
-
 model Payment {
-  id              String        @id @default(cuid())
+  id                    String        @id @default(cuid())
 
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type            PaymentType
-  status          PaymentStatus @default(PENDING)
+  status                PaymentStatus @default(PENDING)
 
   // Stripe
-  stripePaymentIntentId String?  @unique
+  stripePaymentIntentId String?       @unique
   stripeChargeId        String?
 
-  // Amount
-  amount          Decimal       @db.Decimal(10, 2) // in EUR
-  currency        String        @default("EUR")
+  // Montant
+  amount                Decimal       @db.Decimal(10, 2) // en EUR
+  currency              String        @default("EUR")
 
-  // References
-  orderId         String?       @unique
-  order           Order?        @relation(fields: [orderId], references: [id])
+  // Type
+  creditsAmount         Int?          // Si achat de crédits
+  gameId                String?       // Si achat ticket BIG
 
   // Metadata
-  metadata        Json?
+  metadata              Json?
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -436,60 +381,15 @@ model Payment {
 }
 
 // ============================================
-// NOTIFICATIONS
+// ADMIN LOGS (Traçabilité)
 // ============================================
-
-enum NotificationType {
-  GAME_STARTED
-  GAME_WON
-  CREDITS_RECEIVED
-  ORDER_SHIPPED
-  REFERRAL_BONUS
-  SYSTEM
-}
-
-model Notification {
-  id              String            @id @default(cuid())
-  userId          String
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type            NotificationType
-  title           String
-  message         String            @db.Text
-
-  read            Boolean           @default(false)
-
-  // Optional link
-  link            String?
-
-  createdAt       DateTime          @default(now())
-
-  @@index([userId])
-  @@index([read])
-  @@map("notifications")
-}
-
-// ============================================
-// ADMIN LOGS
-// ============================================
-
-enum AdminActionType {
-  USER_SUSPENDED
-  USER_BANNED
-  USER_CREDITS_ADJUSTED
-  GAME_CANCELLED
-  ORDER_REFUNDED
-  PRODUCT_CREATED
-  PRODUCT_UPDATED
-  SYSTEM_CONFIG
-}
 
 model AdminLog {
   id              String          @id @default(cuid())
   adminId         String
 
-  action          AdminActionType
-  targetType      String          // "User", "Game", "Order", etc.
+  action          String          // "USER_SUSPENDED", "GAME_CANCELLED", etc.
+  targetType      String          // "User", "Game", "Order"
   targetId        String
 
   description     String          @db.Text
@@ -500,618 +400,4 @@ model AdminLog {
   @@index([adminId])
   @@index([createdAt])
   @@map("admin_logs")
-}
-
-// ============================================
-// VIP SUBSCRIPTION
-// ============================================
-
-enum SubscriptionStatus {
-  ACTIVE
-  CANCELLED
-  EXPIRED
-  PENDING
-}
-
-model Subscription {
-  id                    String             @id @default(cuid())
-  userId                String
-  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  status                SubscriptionStatus @default(PENDING)
-
-  // Stripe
-  stripeSubscriptionId  String?            @unique
-  stripeCustomerId      String?
-  stripePriceId         String?
-
-  // Subscription details
-  planName              String             @default("VIP")
-  pricePerMonth         Decimal            @db.Decimal(10, 2)
-
-  // Dates
-  startDate             DateTime
-  currentPeriodStart    DateTime
-  currentPeriodEnd      DateTime
-  cancelAt              DateTime?
-  canceledAt            DateTime?
-
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@index([stripeSubscriptionId])
-  @@map("subscriptions")
-}
-
-// ============================================
-// MISSIONS SYSTEM
-// ============================================
-
-enum MissionType {
-  PLAY_GAMES       // Play X games
-  WIN_GAMES        // Win X games
-  DAILY_LOGIN      // Login daily
-  SPEND_CREDITS    // Spend X credits
-  REFER_FRIEND     // Refer a friend
-  SHOP_PURCHASE    // Buy from shop
-  WIN_STREAK       // Win X games in a row
-}
-
-enum MissionFrequency {
-  DAILY
-  WEEKLY
-  MONTHLY
-  ONE_TIME
-}
-
-model Mission {
-  id              String           @id @default(cuid())
-
-  type            MissionType
-  frequency       MissionFrequency
-
-  title           String
-  description     String
-
-  // Requirements
-  targetValue     Int              // Number to reach (e.g., 3 games)
-
-  // Rewards
-  creditsReward   Int              @default(0)
-  xpReward        Int              @default(0)
-
-  // Validity
-  isActive        Boolean          @default(true)
-  startDate       DateTime?
-  endDate         DateTime?
-
-  // Order for display
-  priority        Int              @default(0)
-
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  // Relations
-  userMissions    UserMission[]
-
-  @@index([type])
-  @@index([frequency])
-  @@index([isActive])
-  @@map("missions")
-}
-
-enum MissionStatus {
-  AVAILABLE
-  IN_PROGRESS
-  COMPLETED
-  CLAIMED
-  EXPIRED
-}
-
-model UserMission {
-  id              String         @id @default(cuid())
-  userId          String
-  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  missionId       String
-  mission         Mission        @relation(fields: [missionId], references: [id], onDelete: Cascade)
-
-  status          MissionStatus  @default(AVAILABLE)
-
-  // Progress
-  currentValue    Int            @default(0)
-  targetValue     Int            // Copied from mission for history
-
-  // Dates
-  assignedAt      DateTime       @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
-  claimedAt       DateTime?
-  expiresAt       DateTime?
-
-  @@unique([userId, missionId])
-  @@index([userId])
-  @@index([missionId])
-  @@index([status])
-  @@map("user_missions")
-}
-
-// ============================================
-// PLATFORM STATISTICS (for financial dashboard)
-// ============================================
-
-model DailyStats {
-  id                String   @id @default(cuid())
-  date              DateTime @unique @db.Date
-
-  // Users
-  newUsers          Int      @default(0)
-  activeUsers       Int      @default(0)
-  vipUsers          Int      @default(0)
-
-  // Games
-  gamesPlayed       Int      @default(0)
-  totalPlayers      Int      @default(0)
-
-  // Financial (in EUR)
-  totalRevenue      Decimal  @default(0) @db.Decimal(10, 2)
-  rakeCollected     Decimal  @default(0) @db.Decimal(10, 2)
-  creditsDistributed Decimal @default(0) @db.Decimal(10, 2)
-  vipRevenue        Decimal  @default(0) @db.Decimal(10, 2)
-  shopRevenue       Decimal  @default(0) @db.Decimal(10, 2)
-
-  // Conversions
-  signups           Int      @default(0)
-  firstPurchases    Int      @default(0)
-
-  createdAt         DateTime @default(now())
-
-  @@index([date])
-  @@map("daily_stats")
-}
-
-// ============================================
-// REFERRAL REWARDS TRACKING
-// ============================================
-
-model ReferralReward {
-  id              String   @id @default(cuid())
-  referrerId      String   // User who referred
-  referredUserId  String   // User who was referred
-
-  // Rewards earned
-  creditsEarned   Decimal  @default(0) @db.Decimal(10, 2)
-  lifetimeEarned  Decimal  @default(0) @db.Decimal(10, 2) // 5% of referral's winnings
-
-  // Status
-  isActive        Boolean  @default(true)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([referrerId])
-  @@index([referredUserId])
-  @@map("referral_rewards")
-}
-
-// ============================================
-// DAILY WHEEL OF FORTUNE
-// ============================================
-
-enum WheelRewardType {
-  CREDITS
-  FREE_GAME
-  VIP_DAY
-  JACKPOT
-  XP
-}
-
-model DailyWheelSpin {
-  id              String          @id @default(cuid())
-  userId          String
-
-  // Result
-  rewardType      WheelRewardType
-  rewardValue     Int             // Credits/XP amount or 1 for boolean rewards
-
-  // Timestamp
-  createdAt       DateTime        @default(now())
-  claimedAt       DateTime?
-
-  @@index([userId])
-  @@index([createdAt])
-  @@map("daily_wheel_spins")
-}
-
-// ============================================
-// ACHIEVEMENTS & BADGES
-// ============================================
-
-enum AchievementCategory {
-  GAMES
-  WINS
-  SOCIAL
-  SPENDING
-  SPECIAL
-}
-
-model Achievement {
-  id              String              @id @default(cuid())
-
-  key             String              @unique // FIRST_BLOOD, ON_FIRE, etc.
-  name            String
-  description     String
-  icon            String              // Emoji or icon name
-
-  category        AchievementCategory
-
-  // Requirements
-  requirement     Json                // Flexible requirements
-
-  // Rewards
-  creditsReward   Int                 @default(0)
-  xpReward        Int                 @default(0)
-
-  // Rarity
-  isRare          Boolean             @default(false)
-
-  createdAt       DateTime            @default(now())
-
-  // Relations
-  userAchievements UserAchievement[]
-
-  @@index([category])
-  @@map("achievements")
-}
-
-model UserAchievement {
-  id              String      @id @default(cuid())
-  userId          String
-
-  achievementId   String
-  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-
-  // Progress
-  progress        Int         @default(0)
-  target          Int
-
-  // Status
-  isUnlocked      Boolean     @default(false)
-  unlockedAt      DateTime?
-
-  createdAt       DateTime    @default(now())
-
-  @@unique([userId, achievementId])
-  @@index([userId])
-  @@index([achievementId])
-  @@map("user_achievements")
-}
-
-// ============================================
-// TOURNAMENTS
-// ============================================
-
-enum TournamentStatus {
-  UPCOMING
-  REGISTRATION_OPEN
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-model Tournament {
-  id              String            @id @default(cuid())
-
-  name            String
-  description     String            @db.Text
-
-  // Entry
-  entryFee        Decimal           @db.Decimal(10, 2)
-  maxParticipants Int               @default(100)
-
-  // Prize pool
-  basePrizePool   Decimal           @db.Decimal(10, 2)
-  totalPrizePool  Decimal           @db.Decimal(10, 2)
-
-  // Prize distribution (top 3)
-  firstPlacePct   Int               @default(70)
-  secondPlacePct  Int               @default(20)
-  thirdPlacePct   Int               @default(10)
-
-  // Winners
-  firstPlaceId    String?
-  secondPlaceId   String?
-  thirdPlaceId    String?
-
-  // Status
-  status          TournamentStatus  @default(UPCOMING)
-
-  // Schedule
-  registrationStart DateTime
-  registrationEnd   DateTime
-  startTime       DateTime
-  endTime         DateTime?
-
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-
-  // Relations
-  participants    TournamentParticipant[]
-
-  @@index([status])
-  @@index([startTime])
-  @@map("tournaments")
-}
-
-model TournamentParticipant {
-  id              String      @id @default(cuid())
-
-  tournamentId    String
-  tournament      Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  userId          String
-
-  // Performance
-  gamesPlayed     Int         @default(0)
-  gamesWon        Int         @default(0)
-  totalWinnings   Decimal     @default(0) @db.Decimal(10, 2)
-
-  // Ranking
-  rank            Int?
-  prizeWon        Decimal?    @db.Decimal(10, 2)
-
-  joinedAt        DateTime    @default(now())
-
-  @@unique([tournamentId, userId])
-  @@index([tournamentId])
-  @@index([userId])
-  @@map("tournament_participants")
-}
-
-// ============================================
-// BATTLE PASS (SEASONAL)
-// ============================================
-
-enum BattlePassStatus {
-  ACTIVE
-  ENDED
-}
-
-model BattlePass {
-  id              String           @id @default(cuid())
-
-  seasonNumber    Int              @unique
-  name            String           // "Season 1: Winter Wonderland"
-  description     String           @db.Text
-
-  // Pricing
-  price           Decimal          @db.Decimal(10, 2) // 4.99€
-
-  // Duration
-  startDate       DateTime
-  endDate         DateTime
-
-  status          BattlePassStatus @default(ACTIVE)
-
-  // Tiers
-  maxTier         Int              @default(50)
-
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  // Relations
-  rewards         BattlePassReward[]
-  userProgress    UserBattlePass[]
-
-  @@index([status])
-  @@index([seasonNumber])
-  @@map("battle_passes")
-}
-
-model BattlePassReward {
-  id              String      @id @default(cuid())
-
-  battlePassId    String
-  battlePass      BattlePass  @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
-
-  tier            Int
-
-  // Reward
-  rewardType      String      // CREDITS, COSMETIC, XP, FREE_GAME
-  rewardValue     Int
-  rewardMetadata  Json?       // For cosmetic ID, etc.
-
-  // Free or premium
-  isFree          Boolean     @default(false)
-  isPremium       Boolean     @default(true)
-
-  @@index([battlePassId])
-  @@index([tier])
-  @@map("battle_pass_rewards")
-}
-
-model UserBattlePass {
-  id              String      @id @default(cuid())
-
-  userId          String
-
-  battlePassId    String
-  battlePass      BattlePass  @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
-
-  // Purchase status
-  hasPremium      Boolean     @default(false)
-  purchasedAt     DateTime?
-
-  // Progress
-  currentTier     Int         @default(0)
-  currentXP       Int         @default(0)
-  xpPerTier       Int         @default(1000)
-
-  // Claimed rewards
-  claimedTiers    Int[]
-
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  @@unique([userId, battlePassId])
-  @@index([userId])
-  @@index([battlePassId])
-  @@map("user_battle_passes")
-}
-
-// ============================================
-// COSMETICS (SKINS FOR BINGO GRID)
-// ============================================
-
-enum CosmeticType {
-  GRID_THEME      // Bingo grid theme
-  MARKER_STYLE    // Marker animation
-  SOUND_PACK      // Custom sounds
-  AVATAR_FRAME    // Profile frame
-}
-
-enum CosmeticRarity {
-  COMMON
-  RARE
-  EPIC
-  LEGENDARY
-}
-
-model CosmeticItem {
-  id              String          @id @default(cuid())
-
-  key             String          @unique // "neon_grid", "gold_marker", etc.
-  name            String
-  description     String
-
-  type            CosmeticType
-  rarity          CosmeticRarity  @default(COMMON)
-
-  // Preview
-  previewUrl      String?
-
-  // Pricing
-  priceCredits    Int             // 100-500 cr
-
-  // Availability
-  isAvailable     Boolean         @default(true)
-  isExclusive     Boolean         @default(false) // Battle pass exclusive
-
-  createdAt       DateTime        @default(now())
-
-  // Relations
-  userCosmetics   UserCosmetic[]
-
-  @@index([type])
-  @@index([isAvailable])
-  @@map("cosmetic_items")
-}
-
-model UserCosmetic {
-  id              String        @id @default(cuid())
-
-  userId          String
-
-  cosmeticId      String
-  cosmetic        CosmeticItem  @relation(fields: [cosmeticId], references: [id], onDelete: Cascade)
-
-  // Status
-  isEquipped      Boolean       @default(false)
-
-  acquiredAt      DateTime      @default(now())
-
-  @@unique([userId, cosmeticId])
-  @@index([userId])
-  @@index([cosmeticId])
-  @@map("user_cosmetics")
-}
-
-// ============================================
-// IN-GAME CHAT
-// ============================================
-
-model ChatMessage {
-  id              String   @id @default(cuid())
-
-  gameId          String?  // Null for global chat
-  userId          String
-  username        String   // Denormalized for performance
-
-  message         String   @db.Text
-
-  // Moderation
-  isDeleted       Boolean  @default(false)
-  deletedBy       String?
-  deletedReason   String?
-
-  createdAt       DateTime @default(now())
-
-  @@index([gameId])
-  @@index([userId])
-  @@index([createdAt])
-  @@map("chat_messages")
-}
-
-// ============================================
-// PUSH NOTIFICATIONS SUBSCRIPTIONS
-// ============================================
-
-model PushSubscription {
-  id              String   @id @default(cuid())
-
-  userId          String
-
-  // Web Push API subscription object
-  endpoint        String   @unique
-  keys            Json     // { p256dh, auth }
-
-  // Device info
-  userAgent       String?
-
-  // Preferences
-  isActive        Boolean  @default(true)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([userId])
-  @@map("push_subscriptions")
-}
-
-// ============================================
-// BETA ACCESS CODES
-// ============================================
-
-enum BetaCodeStatus {
-  AVAILABLE
-  USED
-  EXPIRED
-}
-
-model BetaCode {
-  id              String         @id @default(cuid())
-
-  code            String         @unique // 6-8 character code (e.g., BETA2024)
-  status          BetaCodeStatus @default(AVAILABLE)
-
-  // Usage tracking
-  usedBy          String?        // User ID who used this code
-  usedAt          DateTime?
-
-  // Expiration
-  expiresAt       DateTime?
-
-  // Creation tracking
-  createdBy       String         // Admin ID who created this code
-  createdAt       DateTime       @default(now())
-
-  // Metadata
-  notes           String?        // Optional notes (e.g., "Influencer codes", "Launch batch")
-
-  @@index([code])
-  @@index([status])
-  @@index([createdBy])
-  @@map("beta_codes")
 }
