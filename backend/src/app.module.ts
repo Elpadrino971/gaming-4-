@@ -9,15 +9,6 @@ import { CreditsModule } from './credits/credits.module';
 import { ShopModule } from './shop/shop.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
-import { MissionsModule } from './missions/missions.module';
-import { VipModule } from './vip/vip.module';
-import { ReferralsModule } from './referrals/referrals.module';
-import { WheelModule } from './wheel/wheel.module';
-import { AchievementsModule } from './achievements/achievements.module';
-import { TournamentsModule } from './tournaments/tournaments.module';
-import { BattlePassModule } from './battle-pass/battle-pass.module';
-import { CosmeticsModule } from './cosmetics/cosmetics.module';
-import { ChatModule } from './chat/chat.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { ProductsModule } from './products/products.module';
 import { PrizesModule } from './prizes/prizes.module';
@@ -45,31 +36,26 @@ import { BetaModule } from './beta/beta.module';
     // Database
     PrismaModule,
 
-    // Feature modules
+    // Core modules
     AuthModule,
     UsersModule,
     GamesModule,
     CreditsModule,
+
+    // Shop & Payments
     ShopModule,
     ProductsModule,
     PrizesModule,
     StripeModule,
+    PaymentsModule,
+
+    // Logistics
+    AddressesModule,
     ShippingModule,
     EmailModule,
-    PaymentsModule,
-    AdminModule,
-    MissionsModule,
-    VipModule,
-    AddressesModule,
 
-    // New gamification features
-    ReferralsModule,
-    WheelModule,
-    AchievementsModule,
-    TournamentsModule,
-    BattlePassModule,
-    CosmeticsModule,
-    ChatModule,
+    // Admin
+    AdminModule,
     BetaModule,
   ],
 })
