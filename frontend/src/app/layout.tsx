@@ -24,8 +24,8 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#6366f1' },
-    { media: '(prefers-color-scheme: dark)', color: '#1e293b' },
+    { media: '(prefers-color-scheme: light)', color: '#f59e0b' }, // Gold
+    { media: '(prefers-color-scheme: dark)', color: '#111827' }, // Deep black
   ],
 }
 
