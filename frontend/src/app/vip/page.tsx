@@ -45,8 +45,12 @@ export default function VipPage() {
 
       setBenefits(benefitsRes.data)
       setVipStatus(statusRes.data)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading VIP data:', error)
+      // VIP feature not yet implemented in backend
+      if (error.response?.status === 404 || error.code === 'ERR_NETWORK') {
+        toast.error('Fonctionnalité VIP en cours de développement', { duration: 3000 })
+      }
     } finally {
       setLoading(false)
     }

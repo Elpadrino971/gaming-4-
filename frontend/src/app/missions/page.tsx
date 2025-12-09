@@ -44,9 +44,14 @@ export default function MissionsPage() {
     try {
       const response = await api.get('/missions')
       setMissions(response.data)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading missions:', error)
-      toast.error('Erreur lors du chargement des missions')
+      // Missions feature not yet implemented in backend
+      if (error.response?.status === 404 || error.code === 'ERR_NETWORK') {
+        toast.error('Système de missions en cours de développement', { duration: 3000 })
+      } else {
+        toast.error('Erreur lors du chargement des missions')
+      }
     } finally {
       setLoading(false)
     }

@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
 import { Prisma } from '@prisma/client';
+import { TransactionType } from '../types/prisma-enums';
 
 // ============================================
 // GAME CONFIGURATIONS
@@ -61,9 +62,9 @@ export class GamesService {
         status: 'WAITING',
         minPlayers: this.FLASH_CONFIG.minPlayers,
         maxPlayers: this.FLASH_CONFIG.maxPlayers,
-        entryFeeCredits: new Prisma.Decimal(this.FLASH_CONFIG.entryFeeCredits),
-        prizeCredits: new Prisma.Decimal(this.FLASH_CONFIG.prizeCredits),
-        rake: new Prisma.Decimal(this.FLASH_CONFIG.rake),
+        entryFeeCredits: this.FLASH_CONFIG.entryFeeCredits,
+        prizeCredits: this.FLASH_CONFIG.prizeCredits,
+        rake: this.FLASH_CONFIG.rake,
         drawnNumbers: [],
         scheduledStart: new Date(Date.now() + this.FLASH_CONFIG.autoStartInterval * 60 * 1000),
       },
@@ -114,7 +115,7 @@ export class GamesService {
     await this.creditsService.deductCredits(
       userId,
       entryFee,
-      'GAME_ENTRY',
+      TransactionType.GAME_ENTRY,
       {
         gameId,
         description: `Entrée partie FLASH`,
@@ -169,12 +170,12 @@ export class GamesService {
         status: 'OPEN_FOR_TICKETS',
         minPlayers: 3, // Minimum pour lancer
         maxPlayers: null, // Illimité !
-        ticketPrice: new Prisma.Decimal(config.ticketPrice),
+        ticketPrice: config.ticketPrice,
         ticketsSold: 0,
         prizeProductName: config.prizeProductName,
-        prizeProductValue: new Prisma.Decimal(config.prizeProductValue),
-        prizeProductCost: new Prisma.Decimal(config.prizeProductCost),
-        rake: new Prisma.Decimal(config.rake),
+        prizeProductValue: config.prizeProductValue,
+        prizeProductCost: config.prizeProductCost,
+        rake: config.rake,
         drawnNumbers: [],
         scheduledStart: config.scheduledStart,
         scheduledDraw: config.scheduledDraw,
@@ -348,7 +349,7 @@ export class GamesService {
       // FLASH: Attribuer des crédits
       const prizeAmount = Number(game.prizeCredits);
 
-      await this.creditsService.addCredits(winnerId, prizeAmount, 'GAME_WIN', {
+      await this.creditsService.addCredits(winnerId, prizeAmount, TransactionType.GAME_WIN, {
         gameId,
         description: `Victoire partie FLASH`,
       });

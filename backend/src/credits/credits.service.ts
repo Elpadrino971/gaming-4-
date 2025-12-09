@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TransactionType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { TransactionType } from '../types/prisma-enums';
 
 @Injectable()
 export class CreditsService {
@@ -46,9 +47,9 @@ export class CreditsService {
         data: {
           userId,
           type,
-          amount: new Prisma.Decimal(amount),
-          balanceBefore: new Prisma.Decimal(balanceBefore),
-          balanceAfter: new Prisma.Decimal(balanceAfter),
+          amount: amount,
+          balanceBefore: balanceBefore,
+          balanceAfter: balanceAfter,
           gameId: options?.gameId,
           orderId: options?.orderId,
           paymentId: options?.paymentId,
@@ -108,9 +109,9 @@ export class CreditsService {
         data: {
           userId,
           type,
-          amount: new Prisma.Decimal(-amount), // Négatif pour débit
-          balanceBefore: new Prisma.Decimal(balanceBefore),
-          balanceAfter: new Prisma.Decimal(balanceAfter),
+          amount: -amount, // Négatif pour débit
+          balanceBefore: balanceBefore,
+          balanceAfter: balanceAfter,
           gameId: options?.gameId,
           orderId: options?.orderId,
           description: options?.description,
